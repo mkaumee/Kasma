@@ -34,7 +34,7 @@ export async function signInAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/",
+      redirectTo: "/dashboard",
     });
   } catch (error) {
     // A successful sign-in throws a redirect, which must propagate.
@@ -75,7 +75,7 @@ export async function signUpAction(
   await prisma.user.create({ data: { name, email, passwordHash } });
 
   try {
-    await signIn("credentials", { email, password, redirectTo: "/" });
+    await signIn("credentials", { email, password, redirectTo: "/dashboard" });
   } catch (error) {
     if (error instanceof AuthError) {
       return { error: "Account created, but sign-in failed. Try signing in." };
