@@ -40,6 +40,7 @@ model User {
   attachments       Attachment[]
   notes             Note[]
   transactionEvents TransactionEvent[]
+  resolvedAlerts    Alert[]
 }
 
 /// A tenant. Every business record hangs off an organization.
@@ -59,6 +60,9 @@ model Organization {
   attachments       Attachment[]
   notes             Note[]
   transactionEvents TransactionEvent[]
+  reconciliations   Reconciliation[]
+  alerts            Alert[]
+  rules             Rule[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -131,6 +135,7 @@ model BankAccount {
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   statements   Statement[]
   transactions Transaction[]
+  alerts       Alert[]
 
   @@index([organizationId])
 }
@@ -161,11 +166,13 @@ model Statement {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bankAccount  BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  importJobs   ImportJob[]
-  transactions Transaction[]
-  attachments  Attachment[]
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount    BankAccount     @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  importJobs     ImportJob[]
+  transactions   Transaction[]
+  attachments    Attachment[]
+  reconciliation Reconciliation?
+  alerts         Alert[]
 
   @@index([organizationId])
   @@index([bankAccountId])
@@ -264,13 +271,14 @@ model Transaction {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bankAccount  BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  statement    Statement?   @relation(fields: [statementId], references: [id], onDelete: SetNull)
-  category     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount        @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  statement    Statement?         @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  category     Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   attachments  Attachment[]
   notes        Note[]
   events       TransactionEvent[]
+  alerts       Alert[]
 
   @@unique([organizationId, dedupeHash])
   @@index([organizationId])
@@ -361,4 +369,112 @@ model TransactionEvent {
   @@index([organizationId])
   @@index([transactionId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Financial control (Phase 1.6)
+// ---------------------------------------------------------------------------
+
+enum ReconciliationStatus {
+  BALANCED
+  MISMATCH
+  INCOMPLETE
+}
+
+enum AlertType {
+  BALANCE_MISMATCH
+  MISSING_TRANSACTION
+  MISSING_STATEMENT
+  DUPLICATE
+  ANOMALY
+  UNUSUAL_ACTIVITY
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum RuleType {
+  CATEGORIZATION
+  ALERT
+}
+
+/// Result of reconciling a statement's transactions against its opening/closing
+/// balances. One per statement (re-run updates it).
+model Reconciliation {
+  id              String               @id @default(cuid())
+  organizationId  String
+  statementId     String               @unique
+  expectedClosing BigInt?
+  computedClosing BigInt?
+  delta           BigInt?
+  status          ReconciliationStatus @default(INCOMPLETE)
+  unmatchedCount  Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  statement    Statement    @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// A financial-control finding surfaced to the user. Deduplicated per
+/// (org, dedupeKey) so the same issue isn't raised repeatedly.
+model Alert {
+  id             String        @id @default(cuid())
+  organizationId String
+  type           AlertType
+  severity       AlertSeverity @default(MEDIUM)
+  status         AlertStatus   @default(OPEN)
+  title          String
+  detail         Json?
+  dedupeKey      String
+  bankAccountId  String?
+  statementId    String?
+  transactionId  String?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  statement    Statement?   @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  transaction  Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  resolvedBy   User?        @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId])
+  @@index([status])
+  @@index([type])
+}
+
+/// A user-configured rule for auto-categorization or alerting. `matcher` and
+/// `action` are JSON so the rule engine can evolve without schema changes.
+model Rule {
+  id             String   @id @default(cuid())
+  organizationId String
+  type           RuleType
+  name           String
+  matcher        Json
+  action         Json
+  isActive       Boolean  @default(true)
+  priority       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
