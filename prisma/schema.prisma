@@ -36,7 +36,10 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  memberships Membership[]
+  memberships       Membership[]
+  attachments       Attachment[]
+  notes             Note[]
+  transactionEvents TransactionEvent[]
 }
 
 /// A tenant. Every business record hangs off an organization.
@@ -47,12 +50,15 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships  Membership[]
-  bankAccounts BankAccount[]
-  statements   Statement[]
-  importJobs   ImportJob[]
-  categories   Category[]
-  transactions Transaction[]
+  memberships       Membership[]
+  bankAccounts      BankAccount[]
+  statements        Statement[]
+  importJobs        ImportJob[]
+  categories        Category[]
+  transactions      Transaction[]
+  attachments       Attachment[]
+  notes             Note[]
+  transactionEvents TransactionEvent[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -159,6 +165,7 @@ model Statement {
   bankAccount  BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
   importJobs   ImportJob[]
   transactions Transaction[]
+  attachments  Attachment[]
 
   @@index([organizationId])
   @@index([bankAccountId])
@@ -261,6 +268,9 @@ model Transaction {
   bankAccount  BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
   statement    Statement?   @relation(fields: [statementId], references: [id], onDelete: SetNull)
   category     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  attachments  Attachment[]
+  notes        Note[]
+  events       TransactionEvent[]
 
   @@unique([organizationId, dedupeHash])
   @@index([organizationId])
@@ -269,4 +279,86 @@ model Transaction {
   @@index([categoryId])
   @@index([matchedTransferId])
   @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// Evidence & verification (Phase 1.5)
+// ---------------------------------------------------------------------------
+
+enum AttachmentKind {
+  RECEIPT
+  INVOICE
+  DOCUMENT
+  NOTE
+}
+
+enum TransactionEventKind {
+  CREATED
+  EDITED
+  CATEGORIZED
+  EVIDENCE_ADDED
+  VERIFIED
+  MATCHED
+  NOTE
+}
+
+/// A supporting file attached to a transaction or statement.
+model Attachment {
+  id               String         @id @default(cuid())
+  organizationId   String
+  transactionId    String?
+  statementId      String?
+  kind             AttachmentKind @default(DOCUMENT)
+  fileKey          String
+  originalFilename String?
+  contentType      String?
+  size             Int?
+  uploadedById     String?
+  createdAt        DateTime       @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction  Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  statement    Statement?   @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  uploadedBy   User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([transactionId])
+  @@index([statementId])
+}
+
+/// A free-text note/comment on a transaction.
+model Note {
+  id             String   @id @default(cuid())
+  organizationId String
+  transactionId  String
+  authorId       String?
+  body           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction  Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  author       User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([transactionId])
+}
+
+/// Append-only timeline entry for a transaction (audit log). Never updated.
+model TransactionEvent {
+  id             String               @id @default(cuid())
+  organizationId String
+  transactionId  String
+  actorId        String?
+  kind           TransactionEventKind
+  payload        Json?
+  createdAt      DateTime             @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transaction  Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([transactionId])
+  @@index([createdAt])
 }
