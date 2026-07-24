@@ -47,7 +47,10 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships Membership[]
+  memberships  Membership[]
+  bankAccounts BankAccount[]
+  statements   Statement[]
+  importJobs   ImportJob[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -65,4 +68,116 @@ model Membership {
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Banking (Phase 1.3)
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  LOAN
+  OTHER
+}
+
+enum StatementStatus {
+  UPLOADED
+  QUEUED
+  PARSING
+  PARSED
+  NEEDS_REVIEW
+  CONFIRMED
+  FAILED
+}
+
+enum StatementSource {
+  UPLOAD
+}
+
+enum ImportJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// A single company bank account. Balances are integer minor units.
+model BankAccount {
+  id             String      @id @default(cuid())
+  organizationId String
+  bankName       String
+  accountName    String
+  /// Last 4 digits only — full account numbers are never stored.
+  last4          String?
+  /// ISO 4217 currency code, e.g. "USD".
+  currency       String
+  type           AccountType @default(CHECKING)
+  /// Opening balance in minor units (e.g. cents).
+  openingBalance BigInt      @default(0)
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  statements   Statement[]
+
+  @@index([organizationId])
+}
+
+/// An uploaded bank statement and the metadata extracted from it. The
+/// opening/closing balances are the reconciliation oracle for its period.
+model Statement {
+  id               String          @id @default(cuid())
+  organizationId   String
+  bankAccountId    String
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  openingBalance   BigInt?
+  closingBalance   BigInt?
+  currency         String?
+  status           StatementStatus @default(UPLOADED)
+  source           StatementSource @default(UPLOAD)
+  /// Object-storage key for the uploaded file.
+  fileKey          String?
+  originalFilename String?
+  /// SHA-256 of the file for dedupe + extraction caching.
+  fileHash         String?
+  /// Which parser produced the result (csv/xlsx/pdf/claude).
+  parserUsed       String?
+  confidence       Float?
+  /// Object-storage key for the raw extractor response (LLM audit trail).
+  rawExtractionKey String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  importJobs   ImportJob[]
+
+  @@index([organizationId])
+  @@index([bankAccountId])
+  @@index([fileHash])
+}
+
+/// A background parsing job for a statement (processed by the pg-boss worker).
+model ImportJob {
+  id             String          @id @default(cuid())
+  organizationId String
+  statementId    String
+  status         ImportJobStatus @default(QUEUED)
+  attempts       Int             @default(0)
+  error          String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  statement    Statement    @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([statementId])
+  @@index([status])
 }
