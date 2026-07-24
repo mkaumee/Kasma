@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Landmark } from "lucide-react";
 
 import { signOutAction } from "@/lib/auth/actions";
+import { roleLabel } from "@/lib/auth/rbac";
 import { requireOrg } from "@/lib/auth/session";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 export default async function AppLayout({
@@ -11,7 +13,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { organization, user } = await requireOrg();
+  const { organization, user, role } = await requireOrg();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -28,6 +30,9 @@ export default async function AppLayout({
             </span>
           </Link>
           <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="hidden sm:inline-flex">
+              {roleLabel(role)}
+            </Badge>
             <ThemeToggle />
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {user.email}
