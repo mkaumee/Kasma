@@ -18,7 +18,7 @@ I proposed clarifying questions; they were declined in favor of proceeding, so t
 |---|---|---|
 | **Form factor** | **Web app, prototype-first** — ✅ confirmed by user | Ship a working web prototype before anything else (no mobile/native for now). |
 | **Stack** | TypeScript full-stack: **Next.js (App Router) + PostgreSQL + Prisma + Node worker** — ✅ confirmed by user | One language end-to-end, fastest startup velocity, single deploy. Claude does the hard parsing, so we don't need Python's PDF ecosystem. |
-| **UI design system** | **shadcn/ui (base) + Tremor (dashboard/charts) + TanStack Table (ledger) + Recharts** — all MIT open source | Cohesive Radix+Tailwind foundation, purpose-built for financial dashboards, own-your-code. See **UI Design System** section. |
+| **UI design system** | **shadcn/ui (base) + Recharts charts (Tremor-style) + TanStack Table (ledger)** — all MIT open source | Cohesive Radix + Tailwind v4 foundation, own-your-code. Tremor's charts are Recharts-based; we compose them directly since the legacy `@tremor/react` package targets Tailwind v3. See **UI Design System** section. |
 | **Extraction** | **Hybrid**: deterministic parsers (CSV/XLSX/digital-PDF) first, **Claude** fallback for scanned/unknown formats, every result validated against the running balance | Best accuracy + broadest bank coverage without per-bank templates. |
 | **Market** | **Multi-currency, global-ready** data model from day 1 | LLM extraction is format-agnostic; avoids painful currency retrofits. |
 | **Scope** | **Multi-tenant SaaS from day 1** (Organizations, roles, tenant isolation) | "Company bank accounts" + "startup" implies real multi-tenancy; retrofitting it later is costly. |
@@ -37,7 +37,9 @@ One cohesive system on a single **Radix + Tailwind** foundation — nothing prop
 
 **Design language**: clean, dense-but-legible financial UI — neutral slate/zinc base, a single brand accent, semantic colors for money (credits positive / debits negative / alerts by severity), tabular-nums for figures, generous tables, card-based dashboard. Accessibility (Radix a11y + WCAG contrast) is baked in.
 
-**Alternatives (if a batteries-included single library is preferred later)**: **Mantine** (120+ components incl. DataTable — popular in fintech) or **Ant Design** (enterprise finance look, strongest out-of-the-box tables/forms). Recommendation stands with shadcn/ui + Tremor for speed + ownership.
+**Implementation note (Phase 0):** on **Tailwind v4**, the legacy `@tremor/react` npm package (Tailwind v3) is incompatible. Since Tremor's charts are built on **Recharts** anyway, Kasma composes Tremor-style dashboard blocks (KPI cards, area/bar/line/donut) directly on Recharts + shadcn primitives — same look, no v3 coupling.
+
+**Alternatives (if a batteries-included single library is preferred later)**: **Mantine** (120+ components incl. DataTable — popular in fintech) or **Ant Design** (enterprise finance look, strongest out-of-the-box tables/forms). Recommendation stands with shadcn/ui + Recharts for speed + ownership.
 
 ---
 
@@ -238,7 +240,7 @@ kasma/
 - **Alert**: organizationId, type, severity, status, subjectRef (account/statement/txn), dedupeKey (unique), detail(json), createdAt, resolvedBy/At.
 
 ## Appendix C — Tech stack specifics
-Next.js 15 / React 19 / TS · **pnpm** · Prisma + PostgreSQL · **Auth.js (NextAuth v5)** credentials + Prisma adapter · **zod** validation · Tailwind + **shadcn/ui** + lucide · **Recharts** (follow `dataviz` skill) · **pg-boss** queue · **@aws-sdk/client-s3** (MinIO-compatible) · **@anthropic-ai/sdk** · PDF: `pdfjs-dist` (text + render pages to images for vision) · XLSX: `xlsx`/`exceljs`; CSV: `papaparse` · email: **Resend** · tests: **Vitest** + **Playwright**.
+**Next.js 16** / React 19 / **TypeScript 5** (pinned — Next 16's build-time type integration doesn't support the TS 7 native compiler yet) / **ESLint 9** (pinned — ESLint 10 removed `context.getFilename()`, which eslint-plugin-react still uses) · **pnpm** · **Tailwind v4** + **shadcn/ui** + lucide · Prisma + PostgreSQL · **Auth.js (NextAuth v5)** credentials + Prisma adapter · **zod v4** validation · **Recharts** + **TanStack Table** (follow `dataviz` skill) · **pg-boss** queue · **@aws-sdk/client-s3** (MinIO-compatible) · **@anthropic-ai/sdk** · PDF: `pdfjs-dist` (text + render pages to images for vision) · XLSX: `xlsx`/`exceljs`; CSV: `papaparse` · email: **Resend** · tests: **Vitest** + **Playwright**.
 > Extraction model choice: use a cost-efficient Claude model (e.g. Sonnet) for statement extraction with **tool-use/structured output**; reserve the top model for hard/low-confidence pages. Metered per org.
 
 ## Appendix D — Claude extraction contract (the "no bank API" guardrails)
