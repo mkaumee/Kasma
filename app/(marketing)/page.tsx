@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   BellRing,
   FileText,
@@ -64,9 +65,11 @@ export default function LandingPage() {
           connecting to a single bank API.
         </p>
         <div id="get-started" className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg">Get started</Button>
-          <Button size="lg" variant="outline">
-            Book a demo
+          <Button size="lg" asChild>
+            <Link href="/signup">Get started</Link>
+          </Button>
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/login">Sign in</Link>
           </Button>
         </div>
       </section>

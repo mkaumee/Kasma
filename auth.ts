@@ -6,7 +6,7 @@ import { verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db/client";
 
 const credentialsSchema = z.object({
-  email: z.email(),
+  email: z.email().transform((value) => value.toLowerCase()),
   password: z.string().min(1),
 });
 

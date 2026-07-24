@@ -22,8 +22,11 @@ export default function MarketingLayout({
               <Link href="#features">Features</Link>
             </Button>
             <ThemeToggle />
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/login">Sign in</Link>
+            </Button>
             <Button size="sm" asChild>
-              <Link href="#get-started">Get started</Link>
+              <Link href="/signup">Get started</Link>
             </Button>
           </div>
         </div>
