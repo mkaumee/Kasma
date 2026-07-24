@@ -51,6 +51,8 @@ model Organization {
   bankAccounts BankAccount[]
   statements   Statement[]
   importJobs   ImportJob[]
+  categories   Category[]
+  transactions Transaction[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -120,8 +122,9 @@ model BankAccount {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   statements   Statement[]
+  transactions Transaction[]
 
   @@index([organizationId])
 }
@@ -152,9 +155,10 @@ model Statement {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bankAccount  BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
   importJobs   ImportJob[]
+  transactions Transaction[]
 
   @@index([organizationId])
   @@index([bankAccountId])
@@ -180,4 +184,89 @@ model ImportJob {
   @@index([organizationId])
   @@index([statementId])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Ledger (Phase 1.4)
+// ---------------------------------------------------------------------------
+
+enum TxnDirection {
+  CREDIT
+  DEBIT
+}
+
+enum TxnType {
+  CREDIT
+  DEBIT
+  CHARGE
+  FEE
+  PAYMENT
+  TRANSFER
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  DISPUTED
+}
+
+/// User-defined transaction category (org-scoped).
+model Category {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  color          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+/// A single ledger entry, normalized from a statement row. `amount` is signed
+/// minor units (positive = credit, negative = debit); `runningBalance` is the
+/// statement's post-transaction balance used for reconciliation.
+model Transaction {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  bankAccountId      String
+  statementId        String?
+  date               DateTime
+  valueDate          DateTime?
+  description        String
+  rawDescription     String?
+  amount             BigInt
+  direction          TxnDirection
+  type               TxnType            @default(DEBIT)
+  runningBalance     BigInt?
+  currency           String
+  counterparty       String?
+  reference          String?
+  categoryId         String?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  /// sha256(account|isoDate|signedMinorAmount|normalizedDesc|reference).
+  dedupeHash         String
+  isDuplicate        Boolean            @default(false)
+  isInternalTransfer Boolean            @default(false)
+  /// Soft reference to the matched counterpart transaction (set by the
+  /// reconciliation engine); not an FK to keep the pairing update simple.
+  matchedTransferId  String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  statement    Statement?   @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  category     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, dedupeHash])
+  @@index([organizationId])
+  @@index([bankAccountId])
+  @@index([statementId])
+  @@index([categoryId])
+  @@index([matchedTransferId])
+  @@index([date])
 }
