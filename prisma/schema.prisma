@@ -12,3 +12,57 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ---------------------------------------------------------------------------
+// Tenancy (Phase 1.2)
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER
+  ADMIN
+  ACCOUNTANT
+  VIEWER
+}
+
+/// A person. May belong to multiple organizations via Membership.
+/// Fields are Auth.js-adapter compatible; `passwordHash` backs credentials auth.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships Membership[]
+}
+
+/// A tenant. Every business record hangs off an organization.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+}
+
+/// Join between a User and an Organization, carrying the user's role there.
+model Membership {
+  id             String   @id @default(cuid())
+  role           Role     @default(VIEWER)
+  userId         String
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
