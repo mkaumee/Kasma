@@ -1,0 +1,26 @@
+# Local development services for Kasma.
+# Start with: docker compose up -d
+#
+# Object storage (MinIO) is added in Phase 5.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: kasma-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kasma
+      POSTGRES_PASSWORD: kasma
+      POSTGRES_DB: kasma
+    ports:
+      - "5432:5432"
+    volumes:
+      - kasma-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kasma -d kasma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  kasma-postgres:
