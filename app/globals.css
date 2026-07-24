@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Enable the `dark:` variant based on a `.dark` class on an ancestor.
    next-themes sets this class on <html> via attribute="class". */
