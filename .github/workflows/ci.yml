@@ -11,6 +11,8 @@ concurrency:
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
+  # Non-secret placeholder so NextAuth initializes during build/test.
+  AUTH_SECRET: "ci-placeholder-secret-not-used-in-production"
 
 jobs:
   verify:
