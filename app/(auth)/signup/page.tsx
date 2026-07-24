@@ -11,7 +11,15 @@ import {
 
 export const metadata: Metadata = { title: "Sign up" };
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ invite?: string }>;
+}) {
+  const { invite } = await searchParams;
+  const callbackUrl = invite ? `/invite/${invite}` : undefined;
+  const loginHref = invite ? `/login?invite=${invite}` : "/login";
+
   return (
     <Card>
       <CardHeader>
@@ -21,7 +29,7 @@ export default function SignupPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <SignupForm />
+        <SignupForm callbackUrl={callbackUrl} loginHref={loginHref} />
       </CardContent>
     </Card>
   );

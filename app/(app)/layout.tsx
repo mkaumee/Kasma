@@ -30,6 +30,9 @@ export default async function AppLayout({
             </span>
           </Link>
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/settings/members">Team</Link>
+            </Button>
             <Badge variant="secondary" className="hidden sm:inline-flex">
               {roleLabel(role)}
             </Badge>

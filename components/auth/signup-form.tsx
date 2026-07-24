@@ -8,11 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function SignupForm() {
+export function SignupForm({
+  callbackUrl,
+  loginHref = "/login",
+  defaultEmail,
+}: {
+  callbackUrl?: string;
+  loginHref?: string;
+  defaultEmail?: string;
+}) {
   const [state, action, pending] = useActionState(signUpAction, undefined);
 
   return (
     <form action={action} className="space-y-4">
+      {callbackUrl && (
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+      )}
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
         <Input id="name" name="name" autoComplete="name" required />
@@ -24,6 +35,7 @@ export function SignupForm() {
           name="email"
           type="email"
           autoComplete="email"
+          defaultValue={defaultEmail}
           required
         />
       </div>
@@ -49,7 +61,7 @@ export function SignupForm() {
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={loginHref}
           className="text-primary underline-offset-4 hover:underline"
         >
           Sign in

@@ -41,6 +41,7 @@ model User {
   notes             Note[]
   transactionEvents TransactionEvent[]
   resolvedAlerts    Alert[]
+  sentInvitations   Invitation[]
 }
 
 /// A tenant. Every business record hangs off an organization.
@@ -63,6 +64,7 @@ model Organization {
   reconciliations   Reconciliation[]
   alerts            Alert[]
   rules             Rule[]
+  invitations       Invitation[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -477,4 +479,36 @@ model Rule {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Invitations (Phase 2.5)
+// ---------------------------------------------------------------------------
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+/// A pending invitation for someone to join an organization with a given role.
+model Invitation {
+  id             String           @id @default(cuid())
+  organizationId String
+  email          String
+  role           Role             @default(VIEWER)
+  token          String           @unique
+  status         InvitationStatus @default(PENDING)
+  invitedById    String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation(fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([email])
 }

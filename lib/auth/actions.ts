@@ -9,6 +9,13 @@ import { prisma } from "@/lib/db/client";
 
 export type AuthFormState = { error?: string } | undefined;
 
+/** Only allow same-origin relative redirect targets; default to /dashboard. */
+function safeCallback(raw: FormDataEntryValue | null): string {
+  const value = typeof raw === "string" ? raw : "";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  return "/dashboard";
+}
+
 const emailField = z
   .email("Enter a valid email address.")
   .transform((value) => value.toLowerCase());
@@ -34,7 +41,7 @@ export async function signInAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: safeCallback(formData.get("callbackUrl")),
     });
   } catch (error) {
     // A successful sign-in throws a redirect, which must propagate.
@@ -75,7 +82,11 @@ export async function signUpAction(
   await prisma.user.create({ data: { name, email, passwordHash } });
 
   try {
-    await signIn("credentials", { email, password, redirectTo: "/dashboard" });
+    await signIn("credentials", {
+      email,
+      password,
+      redirectTo: safeCallback(formData.get("callbackUrl")),
+    });
   } catch (error) {
     if (error instanceof AuthError) {
       return { error: "Account created, but sign-in failed. Try signing in." };

@@ -11,7 +11,15 @@ import {
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ invite?: string }>;
+}) {
+  const { invite } = await searchParams;
+  const callbackUrl = invite ? `/invite/${invite}` : undefined;
+  const signupHref = invite ? `/signup?invite=${invite}` : "/signup";
+
   return (
     <Card>
       <CardHeader>
@@ -19,7 +27,7 @@ export default function LoginPage() {
         <CardDescription>Sign in to your Kasma account.</CardDescription>
       </CardHeader>
       <CardContent>
-        <LoginForm />
+        <LoginForm callbackUrl={callbackUrl} signupHref={signupHref} />
       </CardContent>
     </Card>
   );
