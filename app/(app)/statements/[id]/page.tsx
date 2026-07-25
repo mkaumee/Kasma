@@ -22,6 +22,7 @@ import {
   previewKindFor,
 } from "@/components/statements/file-preview";
 import { ReconciliationBanner } from "@/components/statements/reconciliation-banner";
+import { StatementActions } from "@/components/statements/statement-actions";
 import { StatementReviewEditor } from "@/components/statements/statement-review-editor";
 import { StatementsRefresher } from "@/components/statements/statements-refresher";
 import { TransactionsPreview } from "@/components/statements/transactions-preview";
@@ -44,6 +45,7 @@ export default async function StatementDetailPage({
   const { id } = await params;
   const { organization, role } = await requireOrg();
   const canEdit = can(role, "transactions:write");
+  const canManage = can(role, "statements:write");
 
   const statement = await prisma.statement.findFirst({
     where: { id, organizationId: organization.id },
@@ -83,6 +85,15 @@ export default async function StatementDetailPage({
 
   // Reviewers can edit rows until the statement is confirmed.
   const editable = canEdit && !processing && statement.status !== "CONFIRMED";
+  const canConfirm =
+    canManage &&
+    statement.transactions.length > 0 &&
+    (statement.status === "PARSED" || statement.status === "NEEDS_REVIEW");
+  const canReparse =
+    canManage &&
+    !!statement.fileKey &&
+    !processing &&
+    statement.status !== "CONFIRMED";
 
   return (
     <div className="space-y-6">
@@ -112,10 +123,17 @@ export default async function StatementDetailPage({
             ) ?? `Uploaded ${statement.createdAt.toLocaleDateString()}`}
           </p>
         </div>
-        <Badge variant={statementStatusVariant(statement.status)}>
-          {processing && <Loader2 className="animate-spin" aria-hidden />}
-          {STATEMENT_STATUS_LABEL[statement.status]}
-        </Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge variant={statementStatusVariant(statement.status)}>
+            {processing && <Loader2 className="animate-spin" aria-hidden />}
+            {STATEMENT_STATUS_LABEL[statement.status]}
+          </Badge>
+          <StatementActions
+            statementId={statement.id}
+            canConfirm={canConfirm}
+            canReparse={canReparse}
+          />
+        </div>
       </div>
 
       {statement.status === "FAILED" && job?.error && (
