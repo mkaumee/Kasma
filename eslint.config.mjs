@@ -16,6 +16,19 @@ const eslintConfig = [
   },
   ...coreWebVitals,
   ...typescript,
+  {
+    rules: {
+      // Allow intentionally-unused args/vars prefixed with underscore.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
   // Turn off ESLint rules that conflict with Prettier formatting. Keep last.
   eslintConfigPrettier,
 ];
