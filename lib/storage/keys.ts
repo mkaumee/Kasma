@@ -43,3 +43,8 @@ export function orgIdFromKey(key: string): string | null {
   const match = /^orgs\/([^/]+)\//.exec(key);
   return match ? match[1]! : null;
 }
+
+/** The app URL that serves a stored file through access control. */
+export function fileHref(key: string): string {
+  return `/api/files/${key}`;
+}
