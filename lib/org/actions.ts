@@ -1,9 +1,11 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { requirePermission } from "@/lib/auth/guards";
 import { ACTIVE_ORG_COOKIE, requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { createOrganization } from "@/lib/org/service";
@@ -58,4 +60,32 @@ export async function switchOrganizationAction(formData: FormData) {
   }
 
   redirect("/dashboard");
+}
+
+export type OrgProfileState = { error?: string; success?: string } | undefined;
+
+const renameSchema = z.object({
+  name: z.string().trim().min(2, "Enter an organization name.").max(120),
+});
+
+export async function updateOrganizationNameAction(
+  _prev: OrgProfileState,
+  formData: FormData,
+): Promise<OrgProfileState> {
+  const ctx = await requirePermission("org:manage");
+
+  const parsed = renameSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid name." };
+  }
+
+  await prisma.organization.update({
+    where: { id: ctx.organization.id },
+    data: { name: parsed.data.name },
+  });
+
+  // Refresh the settings page and the shell (org name in the sidebar).
+  revalidatePath("/settings");
+  revalidatePath("/", "layout");
+  return { success: "Saved." };
 }
