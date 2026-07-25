@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/settings", label: "Organization" },
   { href: "/settings/members", label: "Members" },
   { href: "/settings/categories", label: "Categories" },
+  { href: "/settings/rules", label: "Rules" },
 ];
 
 export function SettingsNav() {

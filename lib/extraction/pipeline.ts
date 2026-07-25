@@ -10,6 +10,7 @@ import {
   recordTemplate,
 } from "@/lib/extraction/templates";
 import { validateStatement, type ValidationResult } from "@/lib/extraction/validate";
+import { applyCategorizationRules } from "@/lib/rules/engine";
 import { getStorage } from "@/lib/storage";
 import { statementRawExtractionKey } from "@/lib/storage/keys";
 
@@ -253,6 +254,14 @@ export async function processStatement(
       },
       { timeout: 60_000, maxWait: 10_000 },
     );
+
+    // Auto-categorize the freshly imported rows via the org's rules.
+    if (toInsert.length > 0) {
+      await applyCategorizationRules(organizationId, {
+        statementId,
+        onlyUncategorized: true,
+      });
+    }
 
     return {
       statementId,
