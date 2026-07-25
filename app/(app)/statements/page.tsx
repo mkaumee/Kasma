@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
+import { FileText } from "lucide-react";
+
+import { EmptyState } from "@/components/app/empty-state";
 
 export const metadata: Metadata = { title: "Statements" };
 
 export default function StatementsPage() {
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">Statements</h1>
-      <p className="mt-2 text-muted-foreground">
-        Upload PDF or Excel statements and track their processing here.
-      </p>
+      <EmptyState
+        icon={FileText}
+        title="Statements coming soon"
+        description="Upload PDF or Excel statements and transactions will be extracted automatically."
+      />
     </div>
   );
 }

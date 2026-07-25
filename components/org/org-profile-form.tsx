@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { toast } from "sonner";
 
 import { updateOrganizationNameAction } from "@/lib/org/actions";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,10 @@ export function OrgProfileForm({
     updateOrganizationNameAction,
     undefined,
   );
+
+  useEffect(() => {
+    if (state?.success) toast.success(state.success);
+  }, [state]);
 
   return (
     <form action={action} className="max-w-md space-y-4">
@@ -39,9 +44,6 @@ export function OrgProfileForm({
         <p className="text-sm text-destructive" role="alert">
           {state.error}
         </p>
-      )}
-      {state?.success && (
-        <p className="text-sm text-muted-foreground">{state.success}</p>
       )}
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save changes"}

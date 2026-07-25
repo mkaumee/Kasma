@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { toast } from "sonner";
 
 import { inviteMemberAction } from "@/lib/org/invitation-actions";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,10 @@ export function InviteMemberForm() {
     inviteMemberAction,
     undefined,
   );
+
+  useEffect(() => {
+    if (state?.success) toast.success(state.success);
+  }, [state]);
 
   return (
     <form
@@ -47,12 +52,9 @@ export function InviteMemberForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Inviting…" : "Invite"}
       </Button>
-      {(state?.error || state?.success) && (
-        <p
-          className={`w-full text-sm sm:w-auto ${state.error ? "text-destructive" : "text-muted-foreground"}`}
-          role="alert"
-        >
-          {state.error ?? state.success}
+      {state?.error && (
+        <p className="w-full text-sm text-destructive sm:w-auto" role="alert">
+          {state.error}
         </p>
       )}
     </form>
