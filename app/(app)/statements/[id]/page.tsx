@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, ListChecks, Loader2 } from "lucide-react";
 
+import { can } from "@/lib/auth/rbac";
 import { requireOrg } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { formatMoney } from "@/lib/money/currency";
+import { formatMoney, minorToDecimalString } from "@/lib/money/currency";
 import { reconcileStatement } from "@/lib/statements/reconcile";
 import {
   formatStatementPeriod,
@@ -21,6 +22,7 @@ import {
   previewKindFor,
 } from "@/components/statements/file-preview";
 import { ReconciliationBanner } from "@/components/statements/reconciliation-banner";
+import { StatementReviewEditor } from "@/components/statements/statement-review-editor";
 import { StatementsRefresher } from "@/components/statements/statements-refresher";
 import { TransactionsPreview } from "@/components/statements/transactions-preview";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +42,8 @@ export default async function StatementDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { organization } = await requireOrg();
+  const { organization, role } = await requireOrg();
+  const canEdit = can(role, "transactions:write");
 
   const statement = await prisma.statement.findFirst({
     where: { id, organizationId: organization.id },
@@ -77,6 +80,9 @@ export default async function StatementDetailPage({
           statement.confidence ?? 0.5,
         )
       : null;
+
+  // Reviewers can edit rows until the statement is confirmed.
+  const editable = canEdit && !processing && statement.status !== "CONFIRMED";
 
   return (
     <div className="space-y-6">
@@ -210,45 +216,77 @@ export default async function StatementDetailPage({
                   : "No transactions were extracted."}
             </CardDescription>
           </CardHeader>
-          {reconciliation && (
-            <ReconciliationBanner
+          {editable ? (
+            <StatementReviewEditor
+              key={statement.updatedAt.toISOString()}
+              statementId={statement.id}
               currency={currency}
-              summary={{
-                ok: reconciliation.ok,
-                hasBalances: reconciliation.hasBalances,
-                closingOk: reconciliation.closingOk,
-                closingDelta: reconciliation.closingDelta?.toString() ?? null,
-                breaks: reconciliation.breaks.map((b) => ({
-                  index: b.index,
-                  gap: b.gap.toString(),
-                })),
-              }}
-            />
-          )}
-          {statement.transactions.length > 0 ? (
-            <TransactionsPreview
-              currency={currency}
-              transactions={statement.transactions.map((t) => ({
+              openingBalance={
+                statement.openingBalance != null
+                  ? minorToDecimalString(statement.openingBalance, currency)
+                  : null
+              }
+              closingBalance={
+                statement.closingBalance != null
+                  ? minorToDecimalString(statement.closingBalance, currency)
+                  : null
+              }
+              initialRows={statement.transactions.map((t) => ({
                 id: t.id,
-                date: t.date.toISOString(),
+                date: t.date.toISOString().slice(0, 10),
                 description: t.description,
-                amount: t.amount.toString(),
-                direction: t.direction,
-                runningBalance: t.runningBalance?.toString() ?? null,
+                amount: minorToDecimalString(t.amount, currency),
+                balance:
+                  t.runningBalance != null
+                    ? minorToDecimalString(t.runningBalance, currency)
+                    : "",
+                reference: t.reference ?? "",
               }))}
             />
           ) : (
-            <div className="px-6 pb-6">
-              <EmptyState
-                icon={ListChecks}
-                title="Nothing to show yet"
-                description={
-                  processing
-                    ? "Transactions will appear here once parsing finishes."
-                    : "This statement produced no transactions."
-                }
-              />
-            </div>
+            <>
+              {reconciliation && (
+                <ReconciliationBanner
+                  currency={currency}
+                  summary={{
+                    ok: reconciliation.ok,
+                    hasBalances: reconciliation.hasBalances,
+                    closingOk: reconciliation.closingOk,
+                    closingDelta:
+                      reconciliation.closingDelta?.toString() ?? null,
+                    breaks: reconciliation.breaks.map((b) => ({
+                      index: b.index,
+                      gap: b.gap.toString(),
+                    })),
+                  }}
+                />
+              )}
+              {statement.transactions.length > 0 ? (
+                <TransactionsPreview
+                  currency={currency}
+                  transactions={statement.transactions.map((t) => ({
+                    id: t.id,
+                    date: t.date.toISOString(),
+                    description: t.description,
+                    amount: t.amount.toString(),
+                    direction: t.direction,
+                    runningBalance: t.runningBalance?.toString() ?? null,
+                  }))}
+                />
+              ) : (
+                <div className="px-6 pb-6">
+                  <EmptyState
+                    icon={ListChecks}
+                    title="Nothing to show yet"
+                    description={
+                      processing
+                        ? "Transactions will appear here once parsing finishes."
+                        : "This statement produced no transactions."
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
         </Card>
       </div>

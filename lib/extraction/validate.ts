@@ -97,21 +97,31 @@ function scoreConfidence(
   return { confidence: clamp(score, 0.05, UNVERIFIABLE_CAP), ok: false };
 }
 
+/** The only fields the balance math needs from a transaction. */
+export type BalanceRow = { amount: bigint; balance: bigint | null };
+
+export type BalanceInput = {
+  openingBalance: bigint | null;
+  closingBalance: bigint | null;
+  rows: BalanceRow[];
+};
+
 /**
- * Validate a normalized statement against its running balance.
- * Comparisons are exact in minor units unless a tolerance is given.
+ * Core running-balance validation over a minimal row shape. Pure and free of
+ * any server dependency, so the review editor can re-run it in the browser for
+ * live feedback as rows are edited.
  */
-export function validateStatement(
-  statement: NormalizedStatement,
+export function validateBalances(
+  input: BalanceInput,
   opts: ValidateOptions,
 ): ValidationResult {
   const tolerance = opts.toleranceMinor ?? 0n;
-  const txns = statement.transactions;
+  const { rows } = input;
 
-  const sumAmounts = txns.reduce((acc, t) => acc + t.amount, 0n);
+  const sumAmounts = rows.reduce((acc, r) => acc + r.amount, 0n);
 
-  const opening = statement.openingBalance;
-  const statedClosing = statement.closingBalance;
+  const opening = input.openingBalance;
+  const statedClosing = input.closingBalance;
   const computedClosing = opening != null ? opening + sumAmounts : null;
   const closingDelta =
     computedClosing != null && statedClosing != null
@@ -121,13 +131,13 @@ export function validateStatement(
     closingDelta != null ? abs(closingDelta) <= tolerance : null;
 
   // Row-by-row continuity, in printed order (same-day order is meaningful).
-  const balanceCount = txns.filter((t) => t.balance != null).length;
+  const balanceCount = rows.filter((r) => r.balance != null).length;
   const hasBalances = balanceCount >= 2;
   const breaks: ContinuityBreak[] = [];
 
   let running: bigint | null = opening;
-  for (let i = 0; i < txns.length; i++) {
-    const row = txns[i]!;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
     if (running == null) {
       // No anchor yet: adopt this row's balance and continue from it.
       if (row.balance != null) running = row.balance;
@@ -160,4 +170,25 @@ export function validateStatement(
 
   const { confidence, ok } = scoreConfidence(opts.parserConfidence, partial);
   return { ...partial, confidence, ok };
+}
+
+/**
+ * Validate a normalized statement against its running balance.
+ * Comparisons are exact in minor units unless a tolerance is given.
+ */
+export function validateStatement(
+  statement: NormalizedStatement,
+  opts: ValidateOptions,
+): ValidationResult {
+  return validateBalances(
+    {
+      openingBalance: statement.openingBalance,
+      closingBalance: statement.closingBalance,
+      rows: statement.transactions.map((t) => ({
+        amount: t.amount,
+        balance: t.balance,
+      })),
+    },
+    opts,
+  );
 }
