@@ -2,8 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    // Server Actions body size limit for statement uploads is handled at the
-    // route level; keep defaults conservative here.
+    // Allow statement file uploads (up to 20 MB) through Server Actions.
+    serverActions: {
+      bodySizeLimit: "25mb",
+    },
   },
 };
 
