@@ -32,3 +32,20 @@ export function statementStatusVariant(status: StatementStatus): BadgeVariant {
 export function isStatementProcessing(status: StatementStatus): boolean {
   return status === "QUEUED" || status === "PARSING" || status === "UPLOADED";
 }
+
+const PERIOD_FMT: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+};
+
+/** Human-readable statement period, or null when neither bound is set. */
+export function formatStatementPeriod(
+  start: Date | null,
+  end: Date | null,
+): string | null {
+  if (!start && !end) return null;
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, PERIOD_FMT);
+  if (start && end) return `${fmt(start)} – ${fmt(end)}`;
+  return fmt((start ?? end)!);
+}
