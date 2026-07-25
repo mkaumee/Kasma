@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requirePermission } from "@/lib/auth/guards";
@@ -114,4 +115,5 @@ export async function deleteBankAccountAction(formData: FormData) {
     await tenantDb(ctx.organization.id).bankAccount.delete(id);
     revalidatePath("/accounts");
   }
+  redirect("/accounts");
 }

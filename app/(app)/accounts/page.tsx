@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Landmark, Pencil, Plus } from "lucide-react";
 
 import { can } from "@/lib/auth/rbac";
@@ -67,7 +68,14 @@ export default async function AccountsPage() {
                   {account.bankName}
                   {account.last4 ? ` ···· ${account.last4}` : ""}
                 </CardDescription>
-                <CardTitle className="text-xl">{account.accountName}</CardTitle>
+                <CardTitle className="text-xl">
+                  <Link
+                    href={`/accounts/${account.id}`}
+                    className="hover:underline"
+                  >
+                    {account.accountName}
+                  </Link>
+                </CardTitle>
                 {canWrite && (
                   <CardAction>
                     <AccountDialog
