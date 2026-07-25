@@ -1,3 +1,4 @@
+import { runControlsForStatement } from "@/lib/controls/run";
 import { prisma } from "@/lib/db/client";
 import { markTemplateTrustedForStatement } from "@/lib/extraction/templates";
 import { reconcileStatement } from "@/lib/statements/reconcile";
@@ -47,6 +48,13 @@ export async function confirmStatement(
       await markTemplateTrustedForStatement(statementId, tx);
     }
   });
+
+  // Refresh financial controls now that the statement is source-of-truth.
+  try {
+    await runControlsForStatement(organizationId, statementId);
+  } catch (error) {
+    console.error("[controls] failed on confirm", statementId, error);
+  }
 
   return { ok: true };
 }

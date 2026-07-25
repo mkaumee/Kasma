@@ -10,6 +10,7 @@ import {
   recordTemplate,
 } from "@/lib/extraction/templates";
 import { validateStatement, type ValidationResult } from "@/lib/extraction/validate";
+import { runControlsForStatement } from "@/lib/controls/run";
 import { applyCategorizationRules } from "@/lib/rules/engine";
 import { getStorage } from "@/lib/storage";
 import { statementRawExtractionKey } from "@/lib/storage/keys";
@@ -261,6 +262,13 @@ export async function processStatement(
         statementId,
         onlyUncategorized: true,
       });
+    }
+
+    // Run financial controls; never fail the import if a detector errors.
+    try {
+      await runControlsForStatement(organizationId, statementId);
+    } catch (error) {
+      console.error("[controls] failed for statement", statementId, error);
     }
 
     return {
