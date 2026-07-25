@@ -106,7 +106,12 @@ export function LedgerTable({
                 </span>
               </td>
               <td className="max-w-0 px-4 py-2.5">
-                <span className="block truncate">{t.description}</span>
+                <Link
+                  href={`/transactions/${t.id}`}
+                  className="block truncate font-medium hover:underline"
+                >
+                  {t.description}
+                </Link>
                 {t.counterparty && (
                   <span className="block truncate text-xs text-muted-foreground">
                     {t.counterparty}
