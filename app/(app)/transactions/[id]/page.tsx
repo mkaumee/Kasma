@@ -12,6 +12,7 @@ import { fileHref } from "@/lib/storage/keys";
 import { cn } from "@/lib/utils";
 import { CategorySelect } from "@/components/categories/category-select";
 import { EvidencePanel } from "@/components/evidence/evidence-panel";
+import { NotesPanel } from "@/components/notes/notes-panel";
 import {
   TransactionTimeline,
   type TimelineEvent,
@@ -81,6 +82,10 @@ export default async function TransactionDetailPage({
       category: { select: { name: true, color: true } },
       statement: { select: { id: true, originalFilename: true } },
       attachments: { orderBy: { createdAt: "desc" } },
+      notes: {
+        orderBy: { createdAt: "desc" },
+        include: { author: { select: { name: true, email: true } } },
+      },
       events: {
         orderBy: { createdAt: "asc" },
         include: { actor: { select: { name: true, email: true } } },
@@ -244,12 +249,30 @@ export default async function TransactionDetailPage({
         </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Timeline</CardTitle>
-          </CardHeader>
-          <TransactionTimeline events={timeline} />
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Notes</CardTitle>
+            </CardHeader>
+            <NotesPanel
+              transactionId={txn.id}
+              canEdit={canEdit}
+              notes={txn.notes.map((n) => ({
+                id: n.id,
+                body: n.body,
+                authorName: n.author?.name ?? n.author?.email ?? null,
+                createdAt: n.createdAt.toISOString(),
+              }))}
+            />
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Timeline</CardTitle>
+            </CardHeader>
+            <TransactionTimeline events={timeline} />
+          </Card>
+        </div>
       </div>
     </div>
   );
