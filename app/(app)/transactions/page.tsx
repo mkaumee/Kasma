@@ -17,6 +17,7 @@ import {
 import type { LedgerQuery } from "@/lib/transactions/url";
 import { EmptyState } from "@/components/app/empty-state";
 import { BulkCategorize } from "@/components/transactions/bulk-categorize";
+import { BulkVerify } from "@/components/transactions/bulk-verify";
 import { ExportMenu } from "@/components/transactions/export-menu";
 import { LedgerFilters } from "@/components/transactions/ledger-filters";
 import { LedgerPagination } from "@/components/transactions/ledger-pagination";
@@ -122,16 +123,19 @@ export default async function TransactionsPage({
             />
           ) : (
             <Card className="overflow-hidden py-0">
-              {canEdit && categories.length > 0 && (
-                <div className="border-b bg-muted/30 px-4 py-2.5">
-                  <BulkCategorize
-                    query={query}
-                    total={ledger.total}
-                    categories={categories.map((c) => ({
-                      id: c.id,
-                      name: c.name,
-                    }))}
-                  />
+              {canEdit && (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b bg-muted/30 px-4 py-2.5">
+                  {categories.length > 0 && (
+                    <BulkCategorize
+                      query={query}
+                      total={ledger.total}
+                      categories={categories.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                      }))}
+                    />
+                  )}
+                  <BulkVerify query={query} total={ledger.total} />
                 </div>
               )}
               <LedgerTable page={ledger} query={query} />

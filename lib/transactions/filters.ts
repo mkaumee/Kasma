@@ -25,6 +25,8 @@ export type LedgerFilters = {
   dateTo?: string; // yyyy-mm-dd
   amountMin?: string; // decimal, magnitude
   amountMax?: string; // decimal, magnitude
+  /** "yes" = has evidence attached, "no" = missing evidence. */
+  evidence?: "yes" | "no";
 };
 
 const DIRECTIONS = new Set<TxnDirection>(["CREDIT", "DEBIT"]);
@@ -66,6 +68,9 @@ export function parseLedgerFilters(query: LedgerQuery): LedgerFilters {
   if (isDate(query.to)) filters.dateTo = query.to;
   if (query.min?.trim()) filters.amountMin = query.min.trim();
   if (query.max?.trim()) filters.amountMax = query.max.trim();
+  if (query.evidence === "yes" || query.evidence === "no") {
+    filters.evidence = query.evidence;
+  }
   return filters;
 }
 
@@ -97,6 +102,8 @@ export function ledgerWhere(
   if (filters.categoryId === "none") where.categoryId = null;
   else if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.verification) where.verificationStatus = filters.verification;
+  if (filters.evidence === "yes") where.attachments = { some: {} };
+  else if (filters.evidence === "no") where.attachments = { none: {} };
 
   if (filters.dateFrom || filters.dateTo) {
     where.date = {};

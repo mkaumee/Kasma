@@ -74,6 +74,7 @@ export function LedgerFilters({
     if (f.dateTo) sp.set("to", f.dateTo);
     if (f.amountMin) sp.set("min", f.amountMin);
     if (f.amountMax) sp.set("max", f.amountMax);
+    if (f.evidence) sp.set("evidence", f.evidence);
     if (sort) sp.set("sort", sort);
     if (dir) sp.set("dir", dir);
     return sp.toString();
@@ -181,6 +182,16 @@ export function LedgerFilters({
           <option value="UNVERIFIED">Unverified</option>
           <option value="VERIFIED">Verified</option>
           <option value="DISPUTED">Disputed</option>
+        </select>
+        <select
+          value={f.evidence ?? ""}
+          onChange={(e) => set("evidence", e.target.value)}
+          className={controlCls}
+          aria-label="Evidence"
+        >
+          <option value="">Any evidence</option>
+          <option value="yes">Has evidence</option>
+          <option value="no">Missing evidence</option>
         </select>
         <div className="flex items-center gap-2">
           <Input
