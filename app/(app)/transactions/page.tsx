@@ -17,6 +17,7 @@ import {
 import type { LedgerQuery } from "@/lib/transactions/url";
 import { EmptyState } from "@/components/app/empty-state";
 import { BulkCategorize } from "@/components/transactions/bulk-categorize";
+import { ExportMenu } from "@/components/transactions/export-menu";
 import { LedgerFilters } from "@/components/transactions/ledger-filters";
 import { LedgerPagination } from "@/components/transactions/ledger-pagination";
 import { LedgerTable } from "@/components/transactions/ledger-table";
@@ -76,15 +77,18 @@ export default async function TransactionsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-        {totalAll > 0 && (
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {filtersActive
-              ? `${ledger.total} of ${totalAll}`
-              : `${totalAll} total`}
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {totalAll > 0 && (
+            <p className="text-sm text-muted-foreground tabular-nums">
+              {filtersActive
+                ? `${ledger.total} of ${totalAll}`
+                : `${totalAll} total`}
+            </p>
+          )}
+          {ledger.total > 0 && <ExportMenu query={query} />}
+        </div>
       </div>
 
       {totalAll === 0 ? (
