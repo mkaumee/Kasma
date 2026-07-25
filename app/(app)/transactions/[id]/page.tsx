@@ -4,10 +4,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, Landmark } from "lucide-react";
 import type { TransactionEventKind } from "@prisma/client";
 
+import { can } from "@/lib/auth/rbac";
 import { requireOrg } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { formatMoney } from "@/lib/money/currency";
 import { cn } from "@/lib/utils";
+import { CategorySelect } from "@/components/categories/category-select";
 import {
   TransactionTimeline,
   type TimelineEvent,
@@ -67,7 +69,8 @@ export default async function TransactionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { organization } = await requireOrg();
+  const { organization, role } = await requireOrg();
+  const canEdit = can(role, "transactions:write");
 
   const txn = await prisma.transaction.findFirst({
     where: { id, organizationId: organization.id },
@@ -82,6 +85,14 @@ export default async function TransactionDetailPage({
     },
   });
   if (!txn) notFound();
+
+  const categories = canEdit
+    ? await prisma.category.findMany({
+        where: { organizationId: organization.id },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   const verification = VERIFICATION[txn.verificationStatus];
   const timeline: TimelineEvent[] = txn.events.map((e) => ({
@@ -151,7 +162,13 @@ export default async function TransactionDetailPage({
               </Link>
             </MetaRow>
             <MetaRow label="Category">
-              {txn.category ? (
+              {canEdit ? (
+                <CategorySelect
+                  transactionId={txn.id}
+                  value={txn.categoryId}
+                  categories={categories}
+                />
+              ) : txn.category ? (
                 <span className="inline-flex items-center gap-1.5">
                   <span
                     className="size-2 rounded-full"

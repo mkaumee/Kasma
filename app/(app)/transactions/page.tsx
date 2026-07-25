@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeftRight, SearchX } from "lucide-react";
 
+import { can } from "@/lib/auth/rbac";
 import { requireOrg } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@/lib/transactions/query";
 import type { LedgerQuery } from "@/lib/transactions/url";
 import { EmptyState } from "@/components/app/empty-state";
+import { BulkCategorize } from "@/components/transactions/bulk-categorize";
 import { LedgerFilters } from "@/components/transactions/ledger-filters";
 import { LedgerPagination } from "@/components/transactions/ledger-pagination";
 import { LedgerTable } from "@/components/transactions/ledger-table";
@@ -35,7 +37,8 @@ export default async function TransactionsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { organization } = await requireOrg();
+  const { organization, role } = await requireOrg();
+  const canEdit = can(role, "transactions:write");
   const sp = await searchParams;
 
   const query: LedgerQuery = {};
@@ -115,6 +118,18 @@ export default async function TransactionsPage({
             />
           ) : (
             <Card className="overflow-hidden py-0">
+              {canEdit && categories.length > 0 && (
+                <div className="border-b bg-muted/30 px-4 py-2.5">
+                  <BulkCategorize
+                    query={query}
+                    total={ledger.total}
+                    categories={categories.map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                    }))}
+                  />
+                </div>
+              )}
               <LedgerTable page={ledger} query={query} />
               <LedgerPagination
                 page={ledger.page}
