@@ -48,6 +48,7 @@ export default async function OrganizationSettingsPage() {
             <OrgProfileForm
               defaultName={organization.name}
               slug={organization.slug}
+              baseCurrency={organization.baseCurrency}
             />
           ) : (
             <div className="space-y-1">

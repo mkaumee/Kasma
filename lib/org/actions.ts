@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/guards";
 import { ACTIVE_ORG_COOKIE, requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { isCurrencyCode } from "@/lib/money/currency";
 import { createOrganization } from "@/lib/org/service";
 
 export type OrgFormState = { error?: string } | undefined;
@@ -66,6 +67,7 @@ export type OrgProfileState = { error?: string; success?: string } | undefined;
 
 const renameSchema = z.object({
   name: z.string().trim().min(2, "Enter an organization name.").max(120),
+  baseCurrency: z.string().refine(isCurrencyCode, "Unsupported currency."),
 });
 
 export async function updateOrganizationNameAction(
@@ -74,14 +76,17 @@ export async function updateOrganizationNameAction(
 ): Promise<OrgProfileState> {
   const ctx = await requirePermission("org:manage");
 
-  const parsed = renameSchema.safeParse({ name: formData.get("name") });
+  const parsed = renameSchema.safeParse({
+    name: formData.get("name"),
+    baseCurrency: formData.get("baseCurrency"),
+  });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid name." };
+    return { error: parsed.error.issues[0]?.message ?? "Invalid details." };
   }
 
   await prisma.organization.update({
     where: { id: ctx.organization.id },
-    data: { name: parsed.data.name },
+    data: { name: parsed.data.name, baseCurrency: parsed.data.baseCurrency },
   });
 
   // Refresh the settings page and the shell (org name in the sidebar).

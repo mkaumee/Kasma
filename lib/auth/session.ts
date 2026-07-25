@@ -35,7 +35,12 @@ export async function requireUser(): Promise<SessionUser> {
 }
 
 export type ActiveOrg = {
-  organization: { id: string; name: string; slug: string };
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    baseCurrency: string;
+  };
   role: Role;
 };
 
@@ -62,6 +67,7 @@ export async function getActiveOrg(userId: string): Promise<ActiveOrg | null> {
       id: chosen.organization.id,
       name: chosen.organization.name,
       slug: chosen.organization.slug,
+      baseCurrency: chosen.organization.baseCurrency,
     },
     role: chosen.role,
   };
