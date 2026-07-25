@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/db/client";
 import { CreateOrgForm } from "@/components/org/create-org-form";
 import {
   Card,
@@ -15,13 +13,8 @@ import {
 export const metadata: Metadata = { title: "Create your organization" };
 
 export default async function OnboardingPage() {
-  const user = await requireUser();
-
-  // If the user already belongs to an organization, skip onboarding.
-  const membership = await prisma.membership.findFirst({
-    where: { userId: user.id },
-  });
-  if (membership) redirect("/dashboard");
+  // Must be signed in; this page also serves as "create another organization".
+  await requireUser();
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
