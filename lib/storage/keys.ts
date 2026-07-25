@@ -23,6 +23,14 @@ export function statementFileKey(
   return `${orgKeyPrefix(organizationId)}statements/${statementId}/${sanitizeSegment(filename)}`;
 }
 
+/** Key for a statement's raw extractor response (LLM audit trail). */
+export function statementRawExtractionKey(
+  organizationId: string,
+  statementId: string,
+): string {
+  return `${orgKeyPrefix(organizationId)}statements/${statementId}/raw-extraction.json`;
+}
+
 /** A tenant-scoped key with a random folder (for evidence, ad-hoc uploads). */
 export function randomFileKey(
   organizationId: string,
