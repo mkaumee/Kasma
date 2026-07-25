@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { CategorySelect } from "@/components/categories/category-select";
 import { EvidencePanel } from "@/components/evidence/evidence-panel";
 import { NotesPanel } from "@/components/notes/notes-panel";
+import { VerificationControl } from "@/components/verification/verification-control";
 import {
   TransactionTimeline,
   type TimelineEvent,
@@ -44,10 +45,13 @@ const VERIFICATION = {
 
 function eventDetail(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
-  const source = (payload as Record<string, unknown>).source;
-  if (source === "statement-import") return "Imported from statement";
-  if (source === "review-edit") return "Edited during review";
-  if (source === "review-add") return "Added during review";
+  const p = payload as Record<string, unknown>;
+  if (typeof p.status === "string") return `Marked ${p.status.toLowerCase()}`;
+  if (p.rule === true) return "By auto-categorization rule";
+  if (p.bulk === true) return "Bulk update";
+  if (p.source === "statement-import") return "Imported from statement";
+  if (p.source === "review-edit") return "Edited during review";
+  if (p.source === "review-add") return "Added during review";
   return null;
 }
 
@@ -187,6 +191,18 @@ export default async function TransactionDetailPage({
                 </span>
               ) : (
                 <span className="text-muted-foreground">Uncategorized</span>
+              )}
+            </MetaRow>
+            <MetaRow label="Verification">
+              {canEdit ? (
+                <VerificationControl
+                  transactionId={txn.id}
+                  value={txn.verificationStatus}
+                />
+              ) : (
+                <Badge variant={verification.variant}>
+                  {verification.label}
+                </Badge>
               )}
             </MetaRow>
             <MetaRow label="Counterparty">
