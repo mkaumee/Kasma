@@ -21,8 +21,15 @@ async function transition(
   return result;
 }
 
-export const acknowledgeAlertAction = (id: string) =>
-  transition(id, "ACKNOWLEDGED");
-export const resolveAlertAction = (id: string) => transition(id, "RESOLVED");
-export const dismissAlertAction = (id: string) => transition(id, "DISMISSED");
-export const reopenAlertAction = (id: string) => transition(id, "OPEN");
+export async function acknowledgeAlertAction(id: string) {
+  return transition(id, "ACKNOWLEDGED");
+}
+export async function resolveAlertAction(id: string) {
+  return transition(id, "RESOLVED");
+}
+export async function dismissAlertAction(id: string) {
+  return transition(id, "DISMISSED");
+}
+export async function reopenAlertAction(id: string) {
+  return transition(id, "OPEN");
+}
