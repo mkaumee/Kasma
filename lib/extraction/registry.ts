@@ -20,13 +20,54 @@ export function selectParser(input: ParseInput): Parser | null {
   return parsers.find((p) => p.supports(kind)) ?? null;
 }
 
-/** Parse a statement using the first parser that supports its detected kind. */
+/**
+ * Below this confidence, a deterministic parse is treated as unreliable and
+ * the Claude fallback is attempted (scanned PDFs, images, odd layouts).
+ */
+const CLAUDE_FALLBACK_THRESHOLD = 0.6;
+
+/**
+ * Parse a statement. Runs the best deterministic parser first; if it is
+ * missing or low-confidence, falls back to the Claude extractor when it is
+ * configured. Whichever yields the higher confidence wins. The Claude module
+ * is imported lazily so the Anthropic SDK stays out of paths that never need
+ * it (and out of any client bundle).
+ */
 export async function parseStatement(input: ParseInput): Promise<ParseResult> {
   const parser = selectParser(input);
-  if (!parser) {
-    throw new ExtractionError("No parser available for this file type.");
+
+  let deterministic: ParseResult | null = null;
+  if (parser) {
+    deterministic = await parser.parse(input);
+    if (deterministic.confidence >= CLAUDE_FALLBACK_THRESHOLD) {
+      return deterministic;
+    }
   }
-  return parser.parse(input);
+
+  // Low confidence or no deterministic parser: try Claude, if configured.
+  const { isClaudeAvailable, claudeExtract } = await import(
+    "@/lib/extraction/claude"
+  );
+  if (isClaudeAvailable()) {
+    try {
+      const claude = await claudeExtract(input);
+      if (!deterministic || claude.confidence >= deterministic.confidence) {
+        return claude;
+      }
+    } catch (error) {
+      // Claude fallback failed: use the deterministic result if we have one.
+      if (!deterministic) {
+        throw new ExtractionError(
+          `No deterministic parser and Claude fallback failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
+  if (deterministic) return deterministic;
+  throw new ExtractionError("No parser available for this file type.");
 }
 
 /** Test/introspection helper. */

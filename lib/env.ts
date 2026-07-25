@@ -43,6 +43,14 @@ const envSchema = z.object({
 
   // Phase 6 — statement extraction (Anthropic)
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // Cost-efficient model for per-statement extraction (metered per org). The
+  // top model is reserved for hard/low-confidence pages later.
+  ANTHROPIC_EXTRACTION_MODEL: z.string().min(1).default("claude-sonnet-5"),
+  // When true, mask likely account numbers before sending text to the LLM.
+  LLM_REDACT_PII: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
 
   // Phase 12 — email
   RESEND_API_KEY: z.string().min(1).optional(),
