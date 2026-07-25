@@ -8,8 +8,10 @@ import { can } from "@/lib/auth/rbac";
 import { requireOrg } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { formatMoney } from "@/lib/money/currency";
+import { fileHref } from "@/lib/storage/keys";
 import { cn } from "@/lib/utils";
 import { CategorySelect } from "@/components/categories/category-select";
+import { EvidencePanel } from "@/components/evidence/evidence-panel";
 import {
   TransactionTimeline,
   type TimelineEvent,
@@ -78,6 +80,7 @@ export default async function TransactionDetailPage({
       bankAccount: { select: { id: true, bankName: true, accountName: true } },
       category: { select: { name: true, color: true } },
       statement: { select: { id: true, originalFilename: true } },
+      attachments: { orderBy: { createdAt: "desc" } },
       events: {
         orderBy: { createdAt: "asc" },
         include: { actor: { select: { name: true, email: true } } },
@@ -146,7 +149,8 @@ export default async function TransactionDetailPage({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Details</CardTitle>
@@ -221,6 +225,24 @@ export default async function TransactionDetailPage({
             </MetaRow>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Evidence</CardTitle>
+          </CardHeader>
+          <EvidencePanel
+            transactionId={txn.id}
+            canEdit={canEdit}
+            items={txn.attachments.map((a) => ({
+              id: a.id,
+              kind: a.kind,
+              filename: a.originalFilename ?? "attachment",
+              size: a.size,
+              href: fileHref(a.fileKey),
+            }))}
+          />
+        </Card>
+        </div>
 
         <Card>
           <CardHeader>
