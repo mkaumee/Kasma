@@ -67,6 +67,7 @@ model Organization {
   alerts            Alert[]
   rules             Rule[]
   invitations       Invitation[]
+  templates         StatementTemplate[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -140,6 +141,7 @@ model BankAccount {
   statements   Statement[]
   transactions Transaction[]
   alerts       Alert[]
+  templates    StatementTemplate[]
 
   @@index([organizationId])
 }
@@ -167,11 +169,14 @@ model Statement {
   confidence       Float?
   /// Object-storage key for the raw extractor response (LLM audit trail).
   rawExtractionKey String?
+  /// The learned template this statement matched, if any (Phase 6.12).
+  statementTemplateId String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   bankAccount    BankAccount     @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  template       StatementTemplate? @relation(fields: [statementTemplateId], references: [id], onDelete: SetNull)
   importJobs     ImportJob[]
   transactions   Transaction[]
   attachments    Attachment[]
@@ -481,6 +486,36 @@ model Rule {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+/// A learned, reusable parse profile for a recurring statement format. Matching
+/// uploads reuse the mapping, and once a human confirms a statement produced by
+/// a template it becomes `trusted` so future fully-reconciled uploads of the
+/// same format may auto-confirm (Phase 6.12).
+model StatementTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Optional: a template can be scoped to a single account.
+  bankAccountId  String?
+  /// Structural fingerprint of the format (parser + column signature).
+  signature      String
+  parserUsed     String
+  /// Learned column mapping for tabular formats.
+  columnMap      Json?
+  /// Whether matching, fully-reconciled uploads may auto-confirm.
+  trusted        Boolean  @default(false)
+  timesSeen      Int      @default(1)
+  lastUsedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  statements   Statement[]
+
+  @@unique([organizationId, signature])
+  @@index([organizationId])
+  @@index([bankAccountId])
 }
 
 // ---------------------------------------------------------------------------

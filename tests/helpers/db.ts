@@ -18,6 +18,7 @@ export async function resetDb() {
     "Category",
     "ImportJob",
     "Statement",
+    "StatementTemplate",
     "BankAccount",
     "Membership",
     "Organization",

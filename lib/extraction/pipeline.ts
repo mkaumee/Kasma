@@ -1,9 +1,14 @@
-import { StatementStatus } from "@prisma/client";
+import { Prisma, StatementStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/db/client";
 import { dedupeHash, flagDuplicates } from "@/lib/extraction/dedupe";
 import { normalizeStatement } from "@/lib/extraction/normalize";
 import { parseStatement } from "@/lib/extraction/parsers";
+import {
+  computeSignature,
+  findTemplate,
+  recordTemplate,
+} from "@/lib/extraction/templates";
 import { validateStatement, type ValidationResult } from "@/lib/extraction/validate";
 import { getStorage } from "@/lib/storage";
 import { statementRawExtractionKey } from "@/lib/storage/keys";
@@ -29,13 +34,34 @@ export type ProcessResult = {
 
 /** Confidence at/above which a validated statement is considered clean. */
 const PARSED_CONFIDENCE = 0.9;
+/** Confidence required to auto-confirm (only with a trusted template). */
+const AUTO_CONFIRM_CONFIDENCE = 0.98;
+
+export type StatusInputs = {
+  validation: ValidationResult;
+  /** Rows the normalizer could not use. */
+  dropped: number;
+  /** Whether a trusted saved template matched this format. */
+  trustedTemplate: boolean;
+};
 
 /**
- * Route a validated statement to a status. Auto-confirm (→ CONFIRMED) is added
- * in 6.12; here a clean, high-confidence parse is PARSED and everything else
- * needs a human review.
+ * Route a validated statement to a status:
+ *  - CONFIRMED (auto): a trusted template matched, it fully reconciled, no rows
+ *    were dropped, and confidence is at the reconciled bar.
+ *  - PARSED: reconciled and high-confidence, awaiting a light review.
+ *  - NEEDS_REVIEW: anything else.
  */
-export function decideStatus(validation: ValidationResult): StatementStatus {
+export function decideStatus(inputs: StatusInputs): StatementStatus {
+  const { validation, dropped, trustedTemplate } = inputs;
+  if (
+    trustedTemplate &&
+    validation.ok &&
+    dropped === 0 &&
+    validation.confidence >= AUTO_CONFIRM_CONFIDENCE
+  ) {
+    return StatementStatus.CONFIRMED;
+  }
   if (validation.ok && validation.confidence >= PARSED_CONFIDENCE) {
     return StatementStatus.PARSED;
   }
@@ -123,10 +149,39 @@ export async function processStatement(
       .map((t, i) => ({ t, hash: hashes[i]!, isDuplicate: flags[i]!.isDuplicate }))
       .filter((x) => !x.isDuplicate);
 
-    const status = decideStatus(validation);
+    // Saved-template match: reuse a known format and gate auto-confirm on a
+    // human having previously trusted it.
+    const signature = computeSignature(parseResult);
+    const rawColumns = parseResult.meta?.columns;
+    const columnMap: Prisma.InputJsonValue | null =
+      rawColumns && typeof rawColumns === "object" && !Array.isArray(rawColumns)
+        ? (rawColumns as Prisma.InputJsonValue)
+        : null;
+    const trustedTemplate = signature
+      ? ((await findTemplate(organizationId, signature))?.trusted ?? false)
+      : false;
+
+    const status = decideStatus({
+      validation,
+      dropped: normalized.dropped,
+      trustedTemplate,
+    });
 
     await prisma.$transaction(
       async (tx) => {
+        const statementTemplateId = signature
+          ? await recordTemplate(
+              {
+                organizationId,
+                bankAccountId: statement.bankAccountId,
+                signature,
+                parserUsed: parseResult.parser,
+                columnMap,
+              },
+              tx,
+            )
+          : null;
+
         await tx.statement.update({
           where: { id: statementId },
           data: {
@@ -137,6 +192,7 @@ export async function processStatement(
             parserUsed: parseResult.parser,
             confidence: validation.confidence,
             rawExtractionKey,
+            statementTemplateId,
             // Prefer a period the uploader set; fall back to what we extracted.
             periodStart: statement.periodStart ?? normalized.periodStart,
             periodEnd: statement.periodEnd ?? normalized.periodEnd,

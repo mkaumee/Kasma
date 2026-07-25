@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { prisma } from "@/lib/db/client";
 import { processStatement } from "@/lib/extraction/pipeline";
+import { markTemplateTrustedForStatement } from "@/lib/extraction/templates";
 import { getStorage } from "@/lib/storage";
 import { statementFileKey } from "@/lib/storage/keys";
 
@@ -172,5 +173,33 @@ describe("processStatement (end-to-end)", () => {
       where: { id: statementId },
     });
     expect(statement!.status).toBe("NEEDS_REVIEW");
+  });
+
+  test("a trusted template auto-confirms later matching statements", async () => {
+    const org = await createOrg();
+
+    // First sight of this format: a template is created (untrusted) → PARSED.
+    const acct1 = await makeAccount(org.id);
+    const first = await seedStatement(org.id, acct1.id, GOOD_CSV, "june.csv");
+    const firstResult = await processStatement(first, org.id);
+    expect(firstResult.status).toBe("PARSED");
+
+    const linked = await prisma.statement.findUnique({ where: { id: first } });
+    expect(linked!.statementTemplateId).not.toBeNull();
+
+    // A human confirms it → the template becomes trusted.
+    await markTemplateTrustedForStatement(first);
+
+    // A later upload of the same format (different account) auto-confirms.
+    const acct2 = await makeAccount(org.id);
+    const second = await seedStatement(org.id, acct2.id, GOOD_CSV, "july.csv");
+    const secondResult = await processStatement(second, org.id);
+    expect(secondResult.status).toBe("CONFIRMED");
+
+    const template = await prisma.statementTemplate.findUnique({
+      where: { id: linked!.statementTemplateId! },
+    });
+    expect(template!.trusted).toBe(true);
+    expect(template!.timesSeen).toBe(2);
   });
 });
