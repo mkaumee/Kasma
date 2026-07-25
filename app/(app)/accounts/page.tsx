@@ -1,19 +1,110 @@
 import type { Metadata } from "next";
-import { Landmark } from "lucide-react";
+import { Landmark, Pencil, Plus } from "lucide-react";
 
+import { can } from "@/lib/auth/rbac";
+import { requireOrg } from "@/lib/auth/session";
+import { listAccountsWithBalances } from "@/lib/bank/accounts";
+import { formatMoney, minorToDecimalString } from "@/lib/money/currency";
 import { EmptyState } from "@/components/app/empty-state";
+import { AccountDialog } from "@/components/bank/account-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Accounts" };
 
-export default function AccountsPage() {
+export default async function AccountsPage() {
+  const { organization, role } = await requireOrg();
+  const canWrite = can(role, "accounts:write");
+  const accounts = await listAccountsWithBalances(organization.id);
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-      <EmptyState
-        icon={Landmark}
-        title="Accounts coming soon"
-        description="Add your company bank accounts to start monitoring balances."
-      />
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
+        {canWrite && (
+          <AccountDialog
+            mode="create"
+            trigger={
+              <Button>
+                <Plus /> Add account
+              </Button>
+            }
+          />
+        )}
+      </div>
+
+      {accounts.length === 0 ? (
+        <EmptyState
+          icon={Landmark}
+          title="No bank accounts yet"
+          description="Add your company bank accounts to start monitoring balances across all of them."
+          action={
+            canWrite ? (
+              <AccountDialog
+                mode="create"
+                trigger={
+                  <Button>
+                    <Plus /> Add account
+                  </Button>
+                }
+              />
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {accounts.map((account) => (
+            <Card key={account.id}>
+              <CardHeader>
+                <CardDescription>
+                  {account.bankName}
+                  {account.last4 ? ` ···· ${account.last4}` : ""}
+                </CardDescription>
+                <CardTitle className="text-xl">{account.accountName}</CardTitle>
+                {canWrite && (
+                  <CardAction>
+                    <AccountDialog
+                      mode="edit"
+                      account={{
+                        id: account.id,
+                        bankName: account.bankName,
+                        accountName: account.accountName,
+                        last4: account.last4,
+                        currency: account.currency,
+                        type: account.type,
+                        openingBalance: minorToDecimalString(
+                          account.openingBalance,
+                          account.currency,
+                        ),
+                      }}
+                      trigger={
+                        <Button variant="ghost" size="icon" aria-label="Edit">
+                          <Pencil />
+                        </Button>
+                      }
+                    />
+                  </CardAction>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-semibold tabular-nums">
+                  {formatMoney(account.currentBalance, account.currency)}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {account.currency} · current balance
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
