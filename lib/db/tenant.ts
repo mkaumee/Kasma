@@ -52,6 +52,13 @@ export function tenantDb(organizationId: string) {
       create: (
         data: Omit<Prisma.BankAccountUncheckedCreateInput, "organizationId">,
       ) => prisma.bankAccount.create({ data: { ...data, organizationId } }),
+      update: (id: string, data: Prisma.BankAccountUpdateManyMutationInput) =>
+        prisma.bankAccount.updateMany({
+          where: { id, organizationId },
+          data,
+        }),
+      delete: (id: string) =>
+        prisma.bankAccount.deleteMany({ where: { id, organizationId } }),
     },
 
     statement: {
