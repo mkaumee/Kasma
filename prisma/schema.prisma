@@ -576,3 +576,21 @@ model Notification {
   @@index([userId, readAt])
   @@index([organizationId])
 }
+
+// ---------------------------------------------------------------------------
+// Object storage backed by Postgres (Phase 12 follow-up)
+// ---------------------------------------------------------------------------
+
+/// A stored file when STORAGE_DRIVER=db — lets the app run on Postgres alone,
+/// with no external object store (e.g. web + worker on Railway sharing one DB).
+/// Keys are tenant-scoped (orgs/<id>/...); access control is unchanged (served
+/// through the authenticated /api/files route). Object storage (S3) is still
+/// preferable at scale.
+model StorageObject {
+  key         String   @id
+  contentType String?
+  data        Bytes
+  size        Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

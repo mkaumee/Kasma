@@ -32,8 +32,8 @@ const envSchema = z.object({
   // Phase 2 — auth
   AUTH_SECRET: z.string().min(1).optional(),
 
-  // Phase 5 — object storage (S3-compatible)
-  STORAGE_DRIVER: z.enum(["local", "s3"]).optional(),
+  // Phase 5 — object storage (local disk, S3-compatible, or Postgres)
+  STORAGE_DRIVER: z.enum(["local", "s3", "db"]).optional(),
   LOCAL_STORAGE_DIR: z.string().min(1).default(".storage"),
   S3_ENDPOINT: z.url().optional(),
   S3_REGION: z.string().min(1).optional(),

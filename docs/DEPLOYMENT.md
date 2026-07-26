@@ -22,8 +22,8 @@ Copy `.env.example` and fill in:
 | `DATABASE_URL` | ✅ | PostgreSQL connection string (used by the app, the worker, and pg-boss). |
 | `AUTH_SECRET` | ✅ | `openssl rand -base64 32`. Signs session JWTs. |
 | `NEXT_PUBLIC_APP_URL` | ✅ | Public base URL, e.g. `https://kasma.example.com`. |
-| `STORAGE_DRIVER` | prod | `s3` in production; defaults to local disk otherwise. |
-| `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | with S3 | Object storage credentials. |
+| `STORAGE_DRIVER` | prod | `s3` (object storage), `db` (Postgres — no external store), or unset for local disk (dev only). |
+| `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | with S3 | Object storage credentials (only when `STORAGE_DRIVER=s3`). |
 | `ANTHROPIC_API_KEY` | optional | Enables the Claude fallback extractor for scanned/unknown statements. Without it, the deterministic CSV/Excel/PDF parsers still run. |
 | `ANTHROPIC_EXTRACTION_MODEL` | optional | Defaults to a cost-efficient model. |
 | `LLM_REDACT_PII` | optional | `true` (default) masks likely account numbers before sending text to the LLM. |
@@ -53,11 +53,17 @@ Kasma runs well on Railway as **two services from this one repo** (web + worker)
 plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
 `railway.worker.json` (worker).
 
-> **Storage must be S3-compatible.** The web app writes uploaded files and the
-> worker reads them to parse — they are separate services and cannot share a
-> local disk / volume, so set `STORAGE_DRIVER=s3` with a real bucket
-> (Cloudflare R2, AWS S3, Backblaze B2, or a MinIO service on Railway). The
-> local-disk driver only works for single-process local dev.
+> **File storage must be shared between the two services** (the web app writes
+> uploads; the worker reads them to parse). They cannot share a local disk /
+> volume, so pick one of:
+>
+> - **`STORAGE_DRIVER=db`** — store files in the Postgres you already run. No
+>   external bucket, no extra credentials; simplest for a Railway deploy.
+>   Best for small/medium volumes.
+> - **`STORAGE_DRIVER=s3`** — an S3-compatible bucket (Cloudflare R2, AWS S3,
+>   Backblaze B2, or a MinIO service). Preferred at scale.
+>
+> The local-disk driver only works for single-process local dev.
 
 **Steps**
 
@@ -68,8 +74,9 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
    `/api/health`).
 3. **Add a second service** from the *same* repo for the worker; set its config
    file to `railway.worker.json` (start = `pnpm worker`, no HTTP health check).
-4. **Provision object storage** (e.g. an R2 bucket) and note its S3 endpoint,
-   region, key, secret, and bucket name.
+4. **Choose storage** — set `STORAGE_DRIVER=db` to keep files in Postgres
+   (nothing else to provision), or provision an S3-compatible bucket and use
+   `STORAGE_DRIVER=s3` with its credentials.
 5. **Set variables on BOTH services** (worker needs DB + storage + the LLM key;
    web needs all of it):
 
@@ -77,12 +84,10 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    AUTH_SECRET=<openssl rand -base64 32>
    NEXT_PUBLIC_APP_URL=https://<your-web-domain>
-   STORAGE_DRIVER=s3
-   S3_ENDPOINT=<bucket endpoint>
-   S3_REGION=auto
-   S3_ACCESS_KEY_ID=<key>
-   S3_SECRET_ACCESS_KEY=<secret>
-   S3_BUCKET=<bucket>
+   STORAGE_DRIVER=db          # store files in Postgres — no external bucket
+   # …or use object storage instead:
+   #   STORAGE_DRIVER=s3
+   #   S3_ENDPOINT / S3_REGION / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET
    # optional
    ANTHROPIC_API_KEY=<key>
    RESEND_API_KEY=<key>

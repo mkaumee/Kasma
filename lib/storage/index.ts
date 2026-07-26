@@ -1,16 +1,24 @@
 import { env } from "@/lib/env";
 import { LocalStorage } from "@/lib/storage/local";
+import { PgStorage } from "@/lib/storage/pg";
 import { S3Storage } from "@/lib/storage/s3";
 import type { StorageProvider } from "@/lib/storage/types";
 
 let instance: StorageProvider | undefined;
 
 /**
- * The storage backend for this process. Uses S3 when STORAGE_DRIVER=s3 or when
- * S3 credentials are present; otherwise falls back to local disk.
+ * The storage backend for this process:
+ *  - STORAGE_DRIVER=db  → Postgres (single-database deploys, no object store)
+ *  - STORAGE_DRIVER=s3  (or S3 credentials present) → S3-compatible
+ *  - otherwise → local disk (development)
  */
 export function getStorage(): StorageProvider {
   if (instance) return instance;
+
+  if (env.STORAGE_DRIVER === "db") {
+    instance = new PgStorage();
+    return instance;
+  }
 
   const s3Configured =
     Boolean(env.S3_BUCKET) &&
