@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/settings/members", label: "Members" },
   { href: "/settings/categories", label: "Categories" },
   { href: "/settings/rules", label: "Rules" },
+  { href: "/settings/activity", label: "Activity" },
 ];
 
 export function SettingsNav() {
