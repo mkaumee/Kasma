@@ -6,7 +6,11 @@ import {
   TxnType,
 } from "@prisma/client";
 
+import { hashPassword } from "@/lib/auth/password";
+
 const prisma = new PrismaClient();
+
+const DEMO_PASSWORD = "password123!";
 
 /** Demo dataset for local development. Idempotent — safe to run repeatedly. */
 async function main() {
@@ -16,15 +20,20 @@ async function main() {
     create: { name: "Acme Inc", slug: "acme" },
   });
 
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
   const owner = await prisma.user.upsert({
     where: { email: "owner@kasma.dev" },
-    update: {},
-    create: { email: "owner@kasma.dev", name: "Ada Owner" },
+    update: { passwordHash },
+    create: { email: "owner@kasma.dev", name: "Ada Owner", passwordHash },
   });
   const accountant = await prisma.user.upsert({
     where: { email: "accountant@kasma.dev" },
-    update: {},
-    create: { email: "accountant@kasma.dev", name: "Ben Accountant" },
+    update: { passwordHash },
+    create: {
+      email: "accountant@kasma.dev",
+      name: "Ben Accountant",
+      passwordHash,
+    },
   });
 
   await prisma.membership.upsert({
@@ -142,6 +151,27 @@ async function main() {
     },
   ];
 
+  const closingBalance =
+    operating.openingBalance + rows.reduce((sum, r) => sum + r.amount, 0n);
+
+  // A confirmed statement the transactions belong to.
+  const statement = await prisma.statement.create({
+    data: {
+      organizationId: org.id,
+      bankAccountId: operating.id,
+      currency: "USD",
+      status: "CONFIRMED",
+      source: "UPLOAD",
+      originalFilename: "chase-operating-2026-06.pdf",
+      periodStart: new Date("2026-06-01"),
+      periodEnd: new Date("2026-06-30"),
+      openingBalance: operating.openingBalance,
+      closingBalance,
+      parserUsed: "pdf",
+      confidence: 0.98,
+    },
+  });
+
   let balance = operating.openingBalance;
   let index = 0;
   for (const row of rows) {
@@ -150,6 +180,7 @@ async function main() {
       data: {
         organizationId: org.id,
         bankAccountId: operating.id,
+        statementId: statement.id,
         date: new Date(row.date),
         description: row.description,
         amount: row.amount,
@@ -164,8 +195,32 @@ async function main() {
     index += 1;
   }
 
+  // A demo alert so the Alerts center + dashboard widgets aren't empty.
+  await prisma.alert.upsert({
+    where: {
+      organizationId_dedupeKey: {
+        organizationId: org.id,
+        dedupeKey: "demo:unusual:aws",
+      },
+    },
+    update: {},
+    create: {
+      organizationId: org.id,
+      type: "UNUSUAL_ACTIVITY",
+      severity: "MEDIUM",
+      status: "OPEN",
+      title: "Large round amount",
+      detail: { amount: "-124055", currency: "USD", reason: "round-sum" },
+      dedupeKey: "demo:unusual:aws",
+      bankAccountId: operating.id,
+    },
+  });
+
   console.log(
-    `Seeded org "${org.name}" with 2 users, 3 bank accounts, ${categoryNames.length} categories, ${rows.length} transactions.`,
+    `Seeded org "${org.name}" (${categoryNames.length} categories, 3 accounts, ${rows.length} transactions, 1 statement, 1 alert).`,
+  );
+  console.log(
+    `Demo login: owner@kasma.dev / ${DEMO_PASSWORD} (also accountant@kasma.dev).`,
   );
 }
 
