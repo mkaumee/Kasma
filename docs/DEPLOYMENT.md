@@ -47,6 +47,61 @@ to the browser, and `lib/env.ts` fails fast on invalid configuration.
 `GET /api/health` returns `200 {"status":"ok"}` when the app and database are
 reachable, `503` otherwise — wire it to your load balancer / uptime monitor.
 
+## Deploying on Railway
+
+Kasma runs well on Railway as **two services from this one repo** (web + worker)
+plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
+`railway.worker.json` (worker).
+
+> **Storage must be S3-compatible.** The web app writes uploaded files and the
+> worker reads them to parse — they are separate services and cannot share a
+> local disk / volume, so set `STORAGE_DRIVER=s3` with a real bucket
+> (Cloudflare R2, AWS S3, Backblaze B2, or a MinIO service on Railway). The
+> local-disk driver only works for single-process local dev.
+
+**Steps**
+
+1. **New project → Add Postgres.** Railway provisions it and exposes
+   `DATABASE_URL`.
+2. **Add the web service** from this repo. In its settings set the config file
+   to `railway.json` (start = migrate + `next start`, health check
+   `/api/health`).
+3. **Add a second service** from the *same* repo for the worker; set its config
+   file to `railway.worker.json` (start = `pnpm worker`, no HTTP health check).
+4. **Provision object storage** (e.g. an R2 bucket) and note its S3 endpoint,
+   region, key, secret, and bucket name.
+5. **Set variables on BOTH services** (worker needs DB + storage + the LLM key;
+   web needs all of it):
+
+   ```
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   AUTH_SECRET=<openssl rand -base64 32>
+   NEXT_PUBLIC_APP_URL=https://<your-web-domain>
+   STORAGE_DRIVER=s3
+   S3_ENDPOINT=<bucket endpoint>
+   S3_REGION=auto
+   S3_ACCESS_KEY_ID=<key>
+   S3_SECRET_ACCESS_KEY=<secret>
+   S3_BUCKET=<bucket>
+   # optional
+   ANTHROPIC_API_KEY=<key>
+   RESEND_API_KEY=<key>
+   EMAIL_FROM="Kasma <notifications@yourdomain>"
+   ```
+
+   Reference Postgres with `${{Postgres.DATABASE_URL}}` so both services share
+   the same database (the pg-boss queue also lives there — no Redis needed).
+6. **Deploy.** The web service's start command runs `prisma migrate deploy`
+   before `next start`, so migrations apply automatically. Railway probes
+   `/api/health` until the app + DB are ready.
+7. (Optional) **Seed a demo org** from the web service shell:
+   `pnpm db:seed`.
+
+Scale the worker to ≥ 1 instance (it holds the pg-boss subscription). Keep the
+web service to a single instance unless you move migrations out of the start
+command (otherwise replicas race to migrate); Railway's pre-deploy command is
+a good place for `pnpm db:migrate:deploy` once you scale out.
+
 ## Operational notes
 
 - **Migrations** run on deploy (`db:migrate:deploy`); never `migrate dev` in
