@@ -54,6 +54,7 @@ const envSchema = z.object({
 
   // Phase 12 — email
   RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).default("Kasma <notifications@kasma.local>"),
 });
 
 const parsed = envSchema.safeParse(process.env);

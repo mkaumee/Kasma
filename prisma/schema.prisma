@@ -42,6 +42,7 @@ model User {
   transactionEvents TransactionEvent[]
   resolvedAlerts    Alert[]
   sentInvitations   Invitation[]
+  notifications     Notification[]
 }
 
 /// A tenant. Every business record hangs off an organization.
@@ -68,6 +69,7 @@ model Organization {
   rules             Rule[]
   invitations       Invitation[]
   templates         StatementTemplate[]
+  notifications     Notification[]
 }
 
 /// Join between a User and an Organization, carrying the user's role there.
@@ -548,4 +550,29 @@ model Invitation {
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (Phase 12.1)
+// ---------------------------------------------------------------------------
+
+/// An in-app notification for a user within an organization. Email delivery is
+/// best-effort and separate; this row is the durable record + unread state.
+model Notification {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  /// e.g. STATEMENT_PARSED, STATEMENT_FAILED, ALERT, INVITE.
+  type           String
+  title          String
+  body           String?
+  href           String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([organizationId])
 }

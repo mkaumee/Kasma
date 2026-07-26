@@ -271,6 +271,25 @@ export async function processStatement(
       console.error("[controls] failed for statement", statementId, error);
     }
 
+    // Notify reviewers in-app (best-effort).
+    try {
+      const { notifyOrg } = await import("@/lib/notifications/service");
+      await notifyOrg(
+        organizationId,
+        {
+          type: "STATEMENT_PARSED",
+          title: `Statement ${status.toLowerCase().replace("_", " ")}`,
+          body: `${statement.originalFilename ?? "Statement"} — ${
+            toInsert.length
+          } transaction${toInsert.length === 1 ? "" : "s"} imported.`,
+          href: `/statements/${statementId}`,
+        },
+        { minRole: "ACCOUNTANT" },
+      );
+    } catch (error) {
+      console.error("[notify] failed for statement", statementId, error);
+    }
+
     return {
       statementId,
       status,
@@ -300,6 +319,22 @@ export async function processStatement(
         }),
       ])
       .catch(() => {});
+
+    try {
+      const { notifyOrg } = await import("@/lib/notifications/service");
+      await notifyOrg(
+        organizationId,
+        {
+          type: "STATEMENT_FAILED",
+          title: "Statement failed to parse",
+          body: message.slice(0, 200),
+          href: `/statements/${statementId}`,
+        },
+        { minRole: "ACCOUNTANT" },
+      );
+    } catch {
+      /* best-effort */
+    }
     throw error;
   }
 }

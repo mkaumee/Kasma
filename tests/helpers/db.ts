@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db/client";
  */
 export async function resetDb() {
   const tables = [
+    "Notification",
     "Alert",
     "Reconciliation",
     "Rule",
