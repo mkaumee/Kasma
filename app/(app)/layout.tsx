@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/client";
 import { OrgSwitcher } from "@/components/app/org-switcher";
 import { MobileNav, SidebarNav } from "@/components/app/sidebar-nav";
 import { UserMenu } from "@/components/app/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,11 +17,25 @@ export default async function AppLayout({
 }) {
   const { organization, user, role } = await requireOrg();
 
-  const memberships = await prisma.membership.findMany({
-    where: { userId: user.id },
-    include: { organization: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const [memberships, notifications, unread] = await Promise.all([
+    prisma.membership.findMany({
+      where: { userId: user.id },
+      include: { organization: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.notification.findMany({
+      where: { userId: user.id, organizationId: organization.id },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    }),
+    prisma.notification.count({
+      where: {
+        userId: user.id,
+        organizationId: organization.id,
+        readAt: null,
+      },
+    }),
+  ]);
   const orgs = memberships.map((m) => m.organization);
 
   return (
@@ -49,6 +64,17 @@ export default async function AppLayout({
           <Badge variant="secondary" className="hidden sm:inline-flex">
             {roleLabel(role)}
           </Badge>
+          <NotificationBell
+            unread={unread}
+            items={notifications.map((n) => ({
+              id: n.id,
+              title: n.title,
+              body: n.body,
+              href: n.href,
+              read: n.readAt != null,
+              createdAt: n.createdAt.toISOString(),
+            }))}
+          />
           <ThemeToggle />
           <UserMenu name={user.name} email={user.email} />
         </header>
