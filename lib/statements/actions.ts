@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/client";
 import { tenantDb } from "@/lib/db/tenant";
 import { enqueueParseStatement } from "@/lib/queue/boss";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { storeUpload, UploadError } from "@/lib/storage/uploads";
 
 export type UploadState = { error?: string; ok?: boolean } | undefined;
@@ -28,6 +29,14 @@ export async function uploadStatementAction(
   formData: FormData,
 ): Promise<UploadState> {
   const ctx = await requirePermission("statements:write");
+
+  const limit = rateLimit(`upload:${ctx.user.id}`, {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!limit.ok) {
+    return { error: "Too many uploads. Please wait a moment and try again." };
+  }
 
   const parsed = schema.safeParse({
     bankAccountId: formData.get("bankAccountId"),

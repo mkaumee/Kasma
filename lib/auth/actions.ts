@@ -1,13 +1,21 @@
 "use server";
 
+import { headers } from "next/headers";
 import { AuthError } from "next-auth";
 import { z } from "zod";
 
 import { signIn, signOut } from "@/auth";
 import { hashPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db/client";
+import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export type AuthFormState = { error?: string } | undefined;
+
+/** Throttle auth attempts per client IP. */
+async function authThrottle(scope: string): Promise<boolean> {
+  const ip = clientIp(await headers());
+  return rateLimit(`auth:${scope}:${ip}`, { limit: 10, windowMs: 60_000 }).ok;
+}
 
 /** Only allow same-origin relative redirect targets; default to /dashboard. */
 function safeCallback(raw: FormDataEntryValue | null): string {
@@ -29,6 +37,9 @@ export async function signInAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  if (!(await authThrottle("signin"))) {
+    return { error: "Too many attempts. Please wait a minute and try again." };
+  }
   const parsed = signInSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -63,6 +74,9 @@ export async function signUpAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  if (!(await authThrottle("signup"))) {
+    return { error: "Too many attempts. Please wait a minute and try again." };
+  }
   const parsed = signUpSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
