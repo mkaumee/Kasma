@@ -15,6 +15,7 @@ import { getAccountBalances } from "@/lib/dashboard/balances";
 import { getDashboardTimeseries } from "@/lib/dashboard/timeseries";
 import { currencyDecimals, formatMoney } from "@/lib/money/currency";
 import { totalInBaseCurrency } from "@/lib/money/fx";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/app/empty-state";
 import { CashPositionChart } from "@/components/dashboard/cash-position-chart";
 import { FlowsChart } from "@/components/dashboard/flows-chart";
@@ -34,8 +35,15 @@ export default async function DashboardPage() {
   const { organization } = await requireOrg();
   const base = organization.baseCurrency;
 
-  const [accounts, openAlerts, needsReview, series, topAlerts, reviewStatements] =
-    await Promise.all([
+  const [
+    accounts,
+    openAlerts,
+    needsReview,
+    series,
+    topAlerts,
+    reviewStatements,
+    recentActivity,
+  ] = await Promise.all([
       getAccountBalances(organization.id),
       prisma.alert.count({
         where: { organizationId: organization.id, status: "OPEN" },
@@ -59,6 +67,12 @@ export default async function DashboardPage() {
         include: { bankAccount: { select: { bankName: true, accountName: true } } },
         orderBy: { createdAt: "desc" },
         take: 6,
+      }),
+      prisma.transaction.findMany({
+        where: { organizationId: organization.id },
+        include: { bankAccount: { select: { bankName: true, accountName: true } } },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        take: 10,
       }),
     ]);
 
@@ -296,6 +310,64 @@ export default async function DashboardPage() {
                   <p className="text-xs text-muted-foreground">{a.currency}</p>
                 </Link>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-lg">Recent activity</CardTitle>
+              <Link
+                href="/transactions"
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+              >
+                View all →
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {recentActivity.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No transactions yet.
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {recentActivity.map((t) => (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/transactions/${t.id}`}
+                          className="block truncate font-medium hover:underline"
+                        >
+                          {t.description}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {t.date.toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          })}
+                          {" · "}
+                          {t.bankAccount.bankName} · {t.bankAccount.accountName}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "shrink-0 font-medium tabular-nums",
+                          t.direction === "CREDIT"
+                            ? "text-credit"
+                            : "text-debit",
+                        )}
+                      >
+                        {formatMoney(t.amount, t.currency, {
+                          signDisplay: "always",
+                        })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </>
