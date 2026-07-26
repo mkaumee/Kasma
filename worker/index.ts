@@ -3,6 +3,7 @@
 import "dotenv/config";
 
 import { processStatement } from "@/lib/extraction/pipeline";
+import { log } from "@/lib/log";
 import {
   getBoss,
   QUEUE_PARSE_STATEMENT,
@@ -11,22 +12,29 @@ import {
 
 async function main() {
   const boss = await getBoss();
-  console.log(`[worker] started; listening on "${QUEUE_PARSE_STATEMENT}"`);
+  log.info("worker started", { queue: QUEUE_PARSE_STATEMENT });
 
   await boss.work<ParseStatementJob>(QUEUE_PARSE_STATEMENT, async (jobs) => {
     for (const job of jobs) {
       const { statementId, organizationId } = job.data;
-      console.log(`[worker] processing statement ${statementId}`);
+      log.info("processing statement", { statementId });
       try {
         const result = await processStatement(statementId, organizationId);
-        console.log(
-          `[worker] statement ${statementId} → ${result.status} ` +
-            `(${result.parser}, conf ${result.confidence.toFixed(2)}): ` +
-            `${result.inserted} inserted, ${result.duplicates} dup, ` +
-            `${result.dropped} dropped, ${result.breaks} balance breaks`,
-        );
+        log.info("statement processed", {
+          statementId,
+          status: result.status,
+          parser: result.parser,
+          confidence: Number(result.confidence.toFixed(2)),
+          inserted: result.inserted,
+          duplicates: result.duplicates,
+          dropped: result.dropped,
+          breaks: result.breaks,
+        });
       } catch (error) {
-        console.error(`[worker] statement ${statementId} failed`, error);
+        log.error("statement processing failed", {
+          statementId,
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw error; // let pg-boss mark the job failed / retry
       }
     }
@@ -36,7 +44,7 @@ async function main() {
   const shutdown = async (signal: string) => {
     if (stopping) return;
     stopping = true;
-    console.log(`[worker] ${signal} received; stopping gracefully…`);
+    log.info("worker stopping", { signal });
     await boss.stop({ graceful: true });
     process.exit(0);
   };
@@ -45,6 +53,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("[worker] fatal error", error);
+  log.error("worker fatal error", {
+    error: error instanceof Error ? error.message : String(error),
+  });
   process.exit(1);
 });
