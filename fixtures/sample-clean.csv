@@ -1,0 +1,6 @@
+Date,Description,Amount,Balance
+2026-06-01,Opening,,1000.00
+2026-06-02,Customer payment - Globex,4500.00,5500.00
+2026-06-05,AWS invoice,-1240.55,4259.45
+2026-06-09,Customer payment - Initech,12000.00,16259.45
+2026-06-15,Monthly account fee,-35.00,16224.45

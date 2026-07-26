@@ -60,15 +60,27 @@ fixtures/        Sample statements for extraction tests
 docs/            Architecture and the full roadmap
 ```
 
+## Documentation
+
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — how to use Kasma end to end.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — production deployment + env vars.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture summary.
+- [`docs/PLAN.md`](docs/PLAN.md) — the full phased build plan.
+- [`fixtures/`](fixtures/) — sample statements to try the pipeline.
+
 ## Roadmap
 
 The full architecture and the phased, commit-by-commit build plan live in
-[`docs/PLAN.md`](docs/PLAN.md); a summary is in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+[`docs/PLAN.md`](docs/PLAN.md).
 
-**Status:** Phase 0 (foundations & tooling) complete — Next.js + TypeScript,
-linting/formatting, Tailwind + design tokens, the design system, validated env
-config, the marketing shell, and CI.
+**Status:** All 12 phases complete — foundations, database & multi-tenancy,
+auth & RBAC, the app shell, bank accounts, object storage, the statement
+ingestion pipeline (parse → normalize → validate → dedupe → persist, with a
+Claude fallback), statement review & confirm, the transactions ledger with
+categories/rules/export, evidence & verification, reconciliation & the alerts
+engine, the multi-bank dashboard, and release hardening (notifications,
+security headers + rate limiting, structured logging + health checks, E2E,
+and docs).
 
 ## License
 
