@@ -5,9 +5,12 @@ import { BellRing, FileClock, Landmark, Wallet } from "lucide-react";
 import { requireOrg } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { getAccountBalances } from "@/lib/dashboard/balances";
-import { formatMoney } from "@/lib/money/currency";
+import { getDashboardTimeseries } from "@/lib/dashboard/timeseries";
+import { currencyDecimals, formatMoney } from "@/lib/money/currency";
 import { totalInBaseCurrency } from "@/lib/money/fx";
 import { EmptyState } from "@/components/app/empty-state";
+import { CashPositionChart } from "@/components/dashboard/cash-position-chart";
+import { FlowsChart } from "@/components/dashboard/flows-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
 import {
   Card,
@@ -23,7 +26,7 @@ export default async function DashboardPage() {
   const { organization } = await requireOrg();
   const base = organization.baseCurrency;
 
-  const [accounts, openAlerts, needsReview] = await Promise.all([
+  const [accounts, openAlerts, needsReview, series] = await Promise.all([
     getAccountBalances(organization.id),
     prisma.alert.count({
       where: { organizationId: organization.id, status: "OPEN" },
@@ -31,6 +34,7 @@ export default async function DashboardPage() {
     prisma.statement.count({
       where: { organizationId: organization.id, status: "NEEDS_REVIEW" },
     }),
+    getDashboardTimeseries(organization.id, base),
   ]);
 
   const { total, hasUnconvertible } = totalInBaseCurrency(
@@ -40,6 +44,18 @@ export default async function DashboardPage() {
     })),
     base,
   );
+
+  const decimals = currencyDecimals(base);
+  const toMajor = (minor: bigint) => Number(minor) / 10 ** decimals;
+  const cashData = series.map((b) => ({
+    label: b.label,
+    cash: toMajor(b.cashMinor),
+  }));
+  const flowData = series.map((b) => ({
+    label: b.label,
+    credits: toMajor(b.creditsMinor),
+    debits: -toMajor(b.debitsMinor), // negative → below the zero baseline
+  }));
 
   return (
     <div className="space-y-6">
@@ -85,6 +101,33 @@ export default async function DashboardPage() {
               tone={needsReview > 0 ? "warning" : "default"}
             />
           </div>
+
+          {series.length > 0 && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Cash position</CardTitle>
+                  <CardDescription>
+                    Aggregate balance over time ({base}).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CashPositionChart data={cashData} currency={base} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Credits vs debits</CardTitle>
+                  <CardDescription>
+                    External money in and out per month ({base}).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FlowsChart data={flowData} currency={base} />
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           <Card>
             <CardHeader>
