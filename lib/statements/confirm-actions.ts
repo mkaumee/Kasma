@@ -10,7 +10,11 @@ import {
   type StatementActionResult,
 } from "@/lib/statements/confirm";
 
-export type { StatementActionResult };
+// NOTE: this is a "use server" module — it may export ONLY async functions.
+// The StatementActionResult type is imported for the return annotations below;
+// do NOT re-export it here (a type re-export in a "use server" file makes
+// Turbopack emit a runtime reference to the erased binding → ReferenceError).
+// Consumers that need the type import it from "@/lib/statements/confirm".
 
 export async function confirmStatementAction(
   statementId: string,
