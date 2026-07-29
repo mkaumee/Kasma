@@ -3,6 +3,10 @@ import { Prisma, StatementStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/client";
 import { dedupeHash, flagDuplicates } from "@/lib/extraction/dedupe";
 import {
+  describeExtraction,
+  isEmptyExtraction,
+} from "@/lib/extraction/diagnostics";
+import {
   extractStatementMetadata,
   mergeStatementMetadata,
   needsBalanceMetadata,
@@ -37,6 +41,8 @@ export type ProcessResult = {
   duplicates: number;
   dropped: number;
   breaks: number;
+  /** Plain-English reason when extraction produced little or nothing. */
+  note: string | null;
 };
 
 /** Confidence at/above which a validated statement is considered clean. */
@@ -50,10 +56,18 @@ export type StatusInputs = {
   dropped: number;
   /** Whether a trusted saved template matched this format. */
   trustedTemplate: boolean;
+  /** Rows that survived normalization. */
+  rowCount: number;
+  openingBalance: bigint | null;
+  closingBalance: bigint | null;
 };
 
 /**
  * Route a validated statement to a status:
+ *  - FAILED: extraction produced nothing at all — no rows and no balances.
+ *    There is nothing for a human to review, so routing it to NEEDS_REVIEW
+ *    would put an empty grid in the reviewer queue and hide the reason (the
+ *    failure card on the statement page only renders for FAILED).
  *  - CONFIRMED (auto): a trusted template matched, it fully reconciled, no rows
  *    were dropped, and confidence is at the reconciled bar.
  *  - PARSED: reconciled and high-confidence, awaiting a light review.
@@ -61,6 +75,17 @@ export type StatusInputs = {
  */
 export function decideStatus(inputs: StatusInputs): StatementStatus {
   const { validation, dropped, trustedTemplate } = inputs;
+
+  if (
+    isEmptyExtraction({
+      rowCount: inputs.rowCount,
+      openingBalance: inputs.openingBalance,
+      closingBalance: inputs.closingBalance,
+    })
+  ) {
+    return StatementStatus.FAILED;
+  }
+
   if (
     trustedTemplate &&
     validation.ok &&
@@ -136,9 +161,15 @@ export async function processStatement(
       parserConfidence: parseResult.confidence,
     });
 
-    // Persist the raw extractor response for the audit trail, when present.
+    // Persist the extractor's raw output for the audit trail. On failure we
+    // store the whole `meta` instead — that is exactly when someone needs to
+    // see what happened, and previously nothing was kept for failures at all.
     let rawExtractionKey: string | null = null;
-    const rawResponse = parseResult.meta?.rawResponse;
+    const rawResponse =
+      parseResult.meta?.rawResponse ??
+      (parseResult.raw.transactions.length === 0 && parseResult.meta
+        ? JSON.stringify(parseResult.meta)
+        : undefined);
     if (typeof rawResponse === "string") {
       rawExtractionKey = statementRawExtractionKey(organizationId, statementId);
       await getStorage().put(
@@ -187,7 +218,15 @@ export async function processStatement(
       validation,
       dropped: normalized.dropped,
       trustedTemplate,
+      rowCount: normalized.transactions.length,
+      openingBalance: normalized.openingBalance,
+      closingBalance: normalized.closingBalance,
     });
+
+    // Why this file produced little or nothing, in plain English. Persisted on
+    // the statement AND mirrored to ImportJob.error so the existing failure card
+    // renders it — previously this reason was computed and then thrown away.
+    const extractionNote = describeExtraction(parseResult);
 
     await prisma.$transaction(
       async (tx) => {
@@ -215,6 +254,7 @@ export async function processStatement(
             closingBalanceInferred: normalized.closingBalanceInferred,
             parserUsed: parseResult.parser,
             confidence: validation.confidence,
+            extractionNote,
             rawExtractionKey,
             statementTemplateId,
             // Prefer a period the uploader set; fall back to what we extracted.
@@ -272,7 +312,14 @@ export async function processStatement(
 
         await tx.importJob.updateMany({
           where: { statementId },
-          data: { status: "SUCCEEDED", finishedAt: new Date(), error: null },
+          data: {
+            // The job ran; whether it *found* anything is the statement's
+            // status. Keep the note so the failure card has something to show
+            // instead of unconditionally clearing it to null.
+            status: status === StatementStatus.FAILED ? "FAILED" : "SUCCEEDED",
+            finishedAt: new Date(),
+            error: extractionNote,
+          },
         });
       },
       { timeout: 60_000, maxWait: 10_000 },
@@ -321,6 +368,7 @@ export async function processStatement(
       duplicates: flags.filter((f) => f.isDuplicate).length,
       dropped: normalized.dropped,
       breaks: validation.breaks.length,
+      note: extractionNote,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

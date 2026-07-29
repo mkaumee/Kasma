@@ -56,18 +56,49 @@ export function pickProvider(input: ParseInput): Provider | null {
 }
 
 /**
- * Run the configured LLM extractor on a statement file. Throws if no provider
- * is configured — callers must check {@link isLlmAvailable} first.
+ * A provider that can read pixels — needed for scanned PDFs and images, which
+ * no amount of text extraction will recover.
+ *
+ * Today this resolves to Claude when its key is set, and to null otherwise (so
+ * a DeepSeek-only deploy behaves exactly as before). It is a seam, not a
+ * hardcoding: DeepSeek's own vision model (DeepSeek-OCR) has no hosted API and
+ * must be self-hosted, so when one is available it slots in here.
  */
-export async function llmExtract(input: ParseInput): Promise<ParseResult> {
-  const provider = pickProvider(input);
+export function pickVisionProvider(): Provider | null {
+  return env.ANTHROPIC_API_KEY ? "anthropic" : null;
+}
+
+async function runProvider(
+  provider: Provider,
+  input: ParseInput,
+): Promise<ParseResult> {
   if (provider === "deepseek") {
     const { deepseekExtract } = await import("@/lib/extraction/deepseek");
     return deepseekExtract(input);
   }
-  if (provider === "anthropic") {
-    const { claudeExtract } = await import("@/lib/extraction/claude");
-    return claudeExtract(input);
+  const { claudeExtract } = await import("@/lib/extraction/claude");
+  return claudeExtract(input);
+}
+
+/**
+ * Run the configured LLM extractor on a statement file. Throws if no provider
+ * is configured — callers must check {@link isLlmAvailable} first.
+ *
+ * When the chosen provider bows out because it can't read the input (a scanned
+ * PDF handed to a text-only model), retry once with a vision provider. Whether
+ * a PDF is scanned is only discoverable by trying, so this second chance is the
+ * only way such a file can reach vision at all.
+ */
+export async function llmExtract(input: ParseInput): Promise<ParseResult> {
+  const provider = pickProvider(input);
+  if (!provider) {
+    throw new ExtractionError("No LLM extraction provider is configured.");
   }
-  throw new ExtractionError("No LLM extraction provider is configured.");
+
+  const result = await runProvider(provider, input);
+  if (typeof result.meta?.unsupported !== "string") return result;
+
+  const vision = pickVisionProvider();
+  if (!vision || vision === provider) return result;
+  return runProvider(vision, input);
 }

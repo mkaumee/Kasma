@@ -79,4 +79,32 @@ describe("parseStatement orchestration + LLM fallback", () => {
     const res = await parseStatement(input(WEAK_TEXT, "mystery.csv"));
     expect(res.parser).toBe("csv");
   });
+
+  test("a provider that bows out never wins, even on an equal score", async () => {
+    // Regression: with `>=`, a 0.05 "I can't read this" result beat the
+    // deterministic parser's own 0.05 and stamped the LLM's name on a failure
+    // that happened upstream of it — which is how a broken PDF read
+    // "DEEPSEEK 5%" and sent everyone hunting the wrong provider.
+    mockAvailable.mockReturnValue(true);
+    mockExtract.mockResolvedValue({
+      parser: "deepseek",
+      confidence: 0.05,
+      raw: { currency: "USD", transactions: [] },
+      meta: { unsupported: "DeepSeek is text-only." },
+    });
+    const res = await parseStatement(input(WEAK_TEXT, "mystery.csv"));
+    expect(res.parser).toBe("csv");
+  });
+
+  test("an equal-scoring LLM result does not displace the deterministic one", async () => {
+    mockAvailable.mockReturnValue(true);
+    mockExtract.mockResolvedValue({
+      parser: "deepseek",
+      confidence: 0.1,
+      raw: { currency: "USD", transactions: [] },
+    });
+    // The CSV parser scores 0.1 on this input; a tie must keep "csv".
+    const res = await parseStatement(input(WEAK_TEXT, "mystery.csv"));
+    expect(res.parser).toBe("csv");
+  });
 });

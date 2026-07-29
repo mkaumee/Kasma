@@ -136,16 +136,32 @@ export default async function StatementDetailPage({
         </div>
       </div>
 
-      {statement.status === "FAILED" && job?.error && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardDescription className="text-destructive">
-              Parsing failed
-            </CardDescription>
-            <CardTitle className="text-base font-normal">{job.error}</CardTitle>
-          </CardHeader>
-        </Card>
-      )}
+      {/* Prefer the statement's own note (survives job-row churn), then the
+          job error. Shown for FAILED, and for any statement that came back with
+          an explanation — otherwise the reason stays invisible. */}
+      {(statement.extractionNote ?? job?.error) &&
+        (statement.status === "FAILED" || statement.extractionNote) && (
+          <Card
+            className={
+              statement.status === "FAILED" ? "border-destructive/50" : undefined
+            }
+          >
+            <CardHeader>
+              <CardDescription
+                className={
+                  statement.status === "FAILED" ? "text-destructive" : undefined
+                }
+              >
+                {statement.status === "FAILED"
+                  ? "Couldn’t read this statement"
+                  : "Extraction note"}
+              </CardDescription>
+              <CardTitle className="text-base font-normal">
+                {statement.extractionNote ?? job?.error}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

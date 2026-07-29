@@ -51,7 +51,13 @@ export async function parseStatement(input: ParseInput): Promise<ParseResult> {
   if (isLlmAvailable()) {
     try {
       const llm = await llmExtract(input);
-      if (!deterministic || llm.confidence >= deterministic.confidence) {
+      // A provider that bowed out ("I can't read this kind of input") is not a
+      // candidate — it has no rows and would otherwise win a 0.05 vs 0.05 tie
+      // and take the blame for a failure that happened upstream of it.
+      const bowedOut = typeof llm.meta?.unsupported === "string";
+      // Strictly greater: on a tie, keep the deterministic parser's result so
+      // the recorded parser name points at what actually ran.
+      if (!bowedOut && (!deterministic || llm.confidence > deterministic.confidence)) {
         return llm;
       }
     } catch (error) {

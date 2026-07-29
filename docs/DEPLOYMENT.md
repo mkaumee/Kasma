@@ -140,6 +140,12 @@ a good place for `pnpm db:migrate:deploy` once you scale out.
 - **Rate limiting** is in-memory (per instance). For multi-instance auth/upload
   throttling, back `lib/security/rate-limit.ts` with Redis/Upstash.
 - **Logs** are structured JSON (`lib/log.ts`) — ship stdout to your aggregator.
+  The worker's `statement processed` line carries `parser`, `confidence`, and a
+  `note` explaining any statement that produced little or nothing.
+- **A statement that won't extract**: the reason is shown on the statement page
+  and stored in `Statement.extractionNote`. To dig into a specific file, run
+  `pnpm diagnose:pdf path/to/statement.pdf` — it prints the extracted character
+  count, a text sample, the detected columns, and the raw pdfjs error.
 - **Security headers** are set in `next.config.mjs`. A strict script/style CSP
   is deferred (needs nonce wiring) and is the recommended next hardening step.
 - **FX rates** in `lib/money/fx.ts` are indicative placeholders — replace with a

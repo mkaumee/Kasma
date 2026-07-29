@@ -18,6 +18,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "worker": "tsx worker/index.ts",
+    "diagnose:pdf": "tsx scripts/diagnose-pdf.ts",
     "worker:dev": "tsx watch worker/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",

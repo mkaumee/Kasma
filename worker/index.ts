@@ -29,6 +29,9 @@ async function main() {
           duplicates: result.duplicates,
           dropped: result.dropped,
           breaks: result.breaks,
+          // Why nothing came out, when nothing came out. Without this the only
+          // operator-visible signal was an unexplained confidence of 0.05.
+          ...(result.note ? { note: result.note } : {}),
         });
       } catch (error) {
         log.error("statement processing failed", {

@@ -87,3 +87,19 @@ describe("pickProvider (LLM dispatch)", () => {
     expect(pickProvider(CSV)).toBeNull();
   });
 });
+
+describe("pickVisionProvider (scanned-PDF seam)", () => {
+  test("null on a DeepSeek-only deploy — nothing changes", async () => {
+    // DeepSeek's V4 chat models have no vision, and DeepSeek-OCR has no hosted
+    // API, so there is no vision provider to reach for here.
+    setEnv({ DEEPSEEK_API_KEY: "d", EXTRACTION_PROVIDER: "auto" });
+    const { pickVisionProvider } = await load();
+    expect(pickVisionProvider()).toBeNull();
+  });
+
+  test("resolves to Claude when its key is present", async () => {
+    setEnv({ DEEPSEEK_API_KEY: "d", ANTHROPIC_API_KEY: "a" });
+    const { pickVisionProvider } = await load();
+    expect(pickVisionProvider()).toBe("anthropic");
+  });
+});
