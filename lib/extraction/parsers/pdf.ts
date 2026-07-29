@@ -1,5 +1,9 @@
 import type { DetectedKind } from "@/lib/extraction/detect";
-import { itemsToRows, type TextItem } from "@/lib/extraction/pdf-table";
+import {
+  groupLines,
+  itemsToRows,
+  type TextItem,
+} from "@/lib/extraction/pdf-table";
 import { extractFromRows } from "@/lib/extraction/tabular";
 import type { ParseInput, ParseResult, Parser } from "@/lib/extraction/types";
 
@@ -50,6 +54,23 @@ async function extractTextItems(
   }
   await doc.destroy();
   return { items, charCount };
+}
+
+/**
+ * Extract a PDF's text layer as newline-separated lines, for the text-only LLM
+ * providers (e.g. DeepSeek) that cannot read the PDF directly. `charCount` lets
+ * the caller detect scanned/image PDFs (little-to-no text) and bow out. Throws
+ * on encrypted/malformed PDFs — callers should treat that as "no text layer".
+ */
+export async function extractPdfText(
+  bytes: Buffer,
+): Promise<{ text: string; charCount: number }> {
+  const { items, charCount } = await extractTextItems(bytes);
+  const text = groupLines(items)
+    .map((line) => line.items.map((it) => it.str).join(" ").trim())
+    .filter((line) => line !== "")
+    .join("\n");
+  return { text, charCount };
 }
 
 export const pdfParser: Parser = {

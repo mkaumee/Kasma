@@ -41,7 +41,20 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_BUCKET: z.string().min(1).optional(),
 
-  // Phase 6 — statement extraction (Anthropic)
+  // Phase 6 — statement extraction (LLM fallback)
+  // Which LLM provider to prefer for the fallback extractor. "auto" (default)
+  // uses DeepSeek when its key is set, but routes images/scans to Claude when
+  // available (DeepSeek is text-only). "deepseek"/"anthropic" pin a provider.
+  EXTRACTION_PROVIDER: z
+    .enum(["auto", "deepseek", "anthropic"])
+    .default("auto"),
+
+  // DeepSeek (default fallback provider) — OpenAI-compatible chat completions.
+  DEEPSEEK_API_KEY: z.string().min(1).optional(),
+  DEEPSEEK_MODEL: z.string().min(1).default("deepseek-chat"),
+  DEEPSEEK_BASE_URL: z.url().default("https://api.deepseek.com"),
+
+  // Anthropic (Claude) — kept as the vision provider for scanned PDFs/images.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   // Cost-efficient model for per-statement extraction (metered per org). The
   // top model is reserved for hard/low-confidence pages later.

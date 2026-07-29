@@ -24,9 +24,12 @@ Copy `.env.example` and fill in:
 | `NEXT_PUBLIC_APP_URL` | ✅ | Public base URL, e.g. `https://kasma.example.com`. |
 | `STORAGE_DRIVER` | prod | `s3` (object storage), `db` (Postgres — no external store), or unset for local disk (dev only). |
 | `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | with S3 | Object storage credentials (only when `STORAGE_DRIVER=s3`). |
-| `ANTHROPIC_API_KEY` | optional | Enables the Claude fallback extractor for scanned/unknown statements. Without it, the deterministic CSV/Excel/PDF parsers still run. |
+| `EXTRACTION_PROVIDER` | optional | LLM fallback preference: `auto` (default — DeepSeek for text, Claude for scans/images when configured), `deepseek`, or `anthropic`. |
+| `DEEPSEEK_API_KEY` | optional | Enables the DeepSeek fallback extractor (default provider) for CSV/text and digital PDFs. Text-only — cannot read scanned PDFs/images. |
+| `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL` | optional | Default `deepseek-chat` / `https://api.deepseek.com`. |
+| `ANTHROPIC_API_KEY` | optional | Enables the Claude vision fallback for scanned PDFs/images DeepSeek can't read. Without any LLM key, the deterministic CSV/Excel/PDF parsers still run. |
 | `ANTHROPIC_EXTRACTION_MODEL` | optional | Defaults to a cost-efficient model. |
-| `LLM_REDACT_PII` | optional | `true` (default) masks likely account numbers before sending text to the LLM. |
+| `LLM_REDACT_PII` | optional | `true` (default) masks likely account numbers before sending text to any LLM. |
 | `RESEND_API_KEY` | optional | Enables outbound email. Without it, notifications still land in-app; email is skipped. |
 | `EMAIL_FROM` | optional | From address for outbound email. |
 
@@ -88,8 +91,9 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
    # …or use object storage instead:
    #   STORAGE_DRIVER=s3
    #   S3_ENDPOINT / S3_REGION / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET
-   # optional
-   ANTHROPIC_API_KEY=<key>
+   # optional — LLM fallback extractor (deterministic parsers run without it)
+   DEEPSEEK_API_KEY=<key>     # default provider (text-only: CSV/text + digital PDFs)
+   # ANTHROPIC_API_KEY=<key>  # add for vision (scanned PDFs / images)
    RESEND_API_KEY=<key>
    EMAIL_FROM="Kasma <notifications@yourdomain>"
    ```

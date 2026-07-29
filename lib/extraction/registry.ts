@@ -7,7 +7,8 @@ import {
 } from "@/lib/extraction/types";
 
 // Parsers are registered here as they are implemented (Phase 6.4–6.7), in
-// priority order. The Claude fallback (6.7) is registered last.
+// priority order. The LLM fallback (6.7) is not a registered parser — the
+// orchestrator invokes it directly on low confidence (see parseStatement).
 const parsers: Parser[] = [];
 
 /** Register a parser (called by parser modules at import time). */
@@ -22,16 +23,17 @@ export function selectParser(input: ParseInput): Parser | null {
 
 /**
  * Below this confidence, a deterministic parse is treated as unreliable and
- * the Claude fallback is attempted (scanned PDFs, images, odd layouts).
+ * the LLM fallback is attempted (scanned PDFs, images, odd layouts).
  */
-const CLAUDE_FALLBACK_THRESHOLD = 0.6;
+const LLM_FALLBACK_THRESHOLD = 0.6;
 
 /**
  * Parse a statement. Runs the best deterministic parser first; if it is
- * missing or low-confidence, falls back to the Claude extractor when it is
- * configured. Whichever yields the higher confidence wins. The Claude module
- * is imported lazily so the Anthropic SDK stays out of paths that never need
- * it (and out of any client bundle).
+ * missing or low-confidence, falls back to the configured LLM extractor
+ * (DeepSeek by default, Claude for vision — see lib/extraction/llm.ts).
+ * Whichever yields the higher confidence wins. The LLM module is imported
+ * lazily so provider SDKs/transport stay out of paths that never need them
+ * (and out of any client bundle).
  */
 export async function parseStatement(input: ParseInput): Promise<ParseResult> {
   const parser = selectParser(input);
@@ -39,26 +41,24 @@ export async function parseStatement(input: ParseInput): Promise<ParseResult> {
   let deterministic: ParseResult | null = null;
   if (parser) {
     deterministic = await parser.parse(input);
-    if (deterministic.confidence >= CLAUDE_FALLBACK_THRESHOLD) {
+    if (deterministic.confidence >= LLM_FALLBACK_THRESHOLD) {
       return deterministic;
     }
   }
 
-  // Low confidence or no deterministic parser: try Claude, if configured.
-  const { isClaudeAvailable, claudeExtract } = await import(
-    "@/lib/extraction/claude"
-  );
-  if (isClaudeAvailable()) {
+  // Low confidence or no deterministic parser: try the LLM, if configured.
+  const { isLlmAvailable, llmExtract } = await import("@/lib/extraction/llm");
+  if (isLlmAvailable()) {
     try {
-      const claude = await claudeExtract(input);
-      if (!deterministic || claude.confidence >= deterministic.confidence) {
-        return claude;
+      const llm = await llmExtract(input);
+      if (!deterministic || llm.confidence >= deterministic.confidence) {
+        return llm;
       }
     } catch (error) {
-      // Claude fallback failed: use the deterministic result if we have one.
+      // LLM fallback failed: use the deterministic result if we have one.
       if (!deterministic) {
         throw new ExtractionError(
-          `No deterministic parser and Claude fallback failed: ${
+          `No deterministic parser and LLM fallback failed: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );

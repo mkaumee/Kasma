@@ -1,21 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { z } from "zod";
 
 import { detectKind } from "@/lib/extraction/detect";
-import type {
-  ParseInput,
-  ParseResult,
-  RawStatement,
-  RawTransactionRow,
-} from "@/lib/extraction/types";
+import {
+  LLM_BASE_CONFIDENCE,
+  MAX_TEXT_CHARS,
+  StatementSchema,
+  SYSTEM_PROMPT,
+  redactAccountNumbers,
+  toRawStatement,
+} from "@/lib/extraction/llm-schema";
+import type { ParseInput, ParseResult } from "@/lib/extraction/types";
 import { env } from "@/lib/env";
 
 /**
- * Claude-powered statement extractor — the fallback path in the "no bank API"
- * pipeline. It is only invoked when the deterministic parsers fail or return
- * low confidence (see `parseStatement` in registry.ts), for formats like
- * scanned PDFs, images, or unknown layouts.
+ * Claude-powered statement extractor — one of the LLM fallback providers in the
+ * "no bank API" pipeline (see `pickProvider` in llm.ts). It is only invoked when
+ * the deterministic parsers fail or return low confidence, for formats like
+ * scanned PDFs, images, or unknown layouts. Unlike DeepSeek, Claude can read
+ * PDFs and images directly (vision), so it stays the provider for scanned input.
  *
  * Guardrails (see docs/PLAN.md Appendix D):
  *  - Output is forced to a strict JSON schema; we never free-parse prose.
@@ -24,56 +27,12 @@ import { env } from "@/lib/env";
  *  - The raw model response is returned in `meta` so the caller can persist it
  *    (rawExtractionKey) as an audit trail.
  *  - Optional PII redaction masks likely account numbers before sending text.
- *  - Gracefully unavailable: without ANTHROPIC_API_KEY the pipeline still runs
- *    on the deterministic parsers alone.
+ *  - Gracefully unavailable: without ANTHROPIC_API_KEY this provider is skipped.
  */
 
-/** Cap on text sent to the model, to bound token cost on huge exports. */
-const MAX_TEXT_CHARS = 200_000;
-
-/** Base confidence for a successful Claude extraction, before validation. */
-const CLAUDE_BASE_CONFIDENCE = 0.7;
-
-const TransactionSchema = z.object({
-  date: z.string().nullable(),
-  valueDate: z.string().nullable(),
-  description: z.string().nullable(),
-  /** Signed decimal string (negative = debit), when a single amount column. */
-  amount: z.string().nullable(),
-  /** Separate debit/credit magnitudes, when the statement splits them. */
-  debit: z.string().nullable(),
-  credit: z.string().nullable(),
-  /** Running balance after this row, as printed on the statement. */
-  balance: z.string().nullable(),
-  reference: z.string().nullable(),
-  counterparty: z.string().nullable(),
-});
-
-const StatementSchema = z.object({
-  bankName: z.string().nullable(),
-  accountLast4: z.string().nullable(),
-  periodStart: z.string().nullable(),
-  periodEnd: z.string().nullable(),
-  openingBalance: z.string().nullable(),
-  closingBalance: z.string().nullable(),
-  currency: z.string().nullable(),
-  transactions: z.array(TransactionSchema),
-});
-
-type ClaudeStatement = z.infer<typeof StatementSchema>;
-
-const SYSTEM_PROMPT = [
-  "You are a meticulous bank-statement data-extraction engine.",
-  "Extract every transaction row from the provided bank statement exactly as printed.",
-  "Rules:",
-  "- Preserve amounts as decimal strings exactly as shown (keep the sign; use a leading '-' for debits/withdrawals). Do NOT round, reformat, or invent digits.",
-  "- If a statement uses separate debit and credit columns, fill `debit` and `credit` and leave `amount` null.",
-  "- If it uses one signed amount column, fill `amount` and leave `debit`/`credit` null.",
-  "- Copy the printed running `balance` for each row when present; otherwise null.",
-  "- Use ISO-8601 (YYYY-MM-DD) for dates when the format is unambiguous; otherwise copy the printed date string.",
-  "- Never fabricate rows, balances, or totals. If a value is not present, use null.",
-  "- Return ALL rows, in the order they appear.",
-].join("\n");
+// Re-exported so existing importers of the redaction guardrail keep working;
+// the canonical definition now lives in llm-schema (shared with DeepSeek).
+export { redactAccountNumbers };
 
 let cachedClient: Anthropic | null = null;
 
@@ -103,20 +62,6 @@ function imageMediaType(
     return "image/jpeg";
   }
   return "image/webp";
-}
-
-/**
- * Mask sequences that look like full account/card numbers, keeping only the
- * last 4 digits. The 12-digit threshold targets card numbers (13–19),
- * IBAN-length and long account numbers while deliberately leaving dates
- * (≤8 digits) and money amounts untouched.
- */
-export function redactAccountNumbers(text: string): string {
-  return text.replace(/\b\d[\d -]{10,}\d\b/g, (match) => {
-    const digits = match.replace(/\D/g, "");
-    if (digits.length < 12) return match;
-    return `${"*".repeat(digits.length - 4)}${digits.slice(-4)}`;
-  });
 }
 
 type ContentBlock = Anthropic.Messages.ContentBlockParam;
@@ -161,34 +106,6 @@ function buildContent(input: ParseInput): ContentBlock[] {
   return [{ type: "text", text: `${instruction}\n\n----\n${text}` }];
 }
 
-function toRawStatement(
-  parsed: ClaudeStatement,
-  hintCurrency?: string,
-): RawStatement {
-  const transactions: RawTransactionRow[] = parsed.transactions.map((t) => ({
-    date: t.date,
-    valueDate: t.valueDate,
-    description: t.description,
-    amount: t.amount,
-    debit: t.debit,
-    credit: t.credit,
-    balance: t.balance,
-    reference: t.reference,
-    counterparty: t.counterparty,
-  }));
-
-  return {
-    bankName: parsed.bankName,
-    accountLast4: parsed.accountLast4,
-    periodStart: parsed.periodStart,
-    periodEnd: parsed.periodEnd,
-    openingBalance: parsed.openingBalance,
-    closingBalance: parsed.closingBalance,
-    currency: parsed.currency ?? hintCurrency ?? null,
-    transactions,
-  };
-}
-
 /**
  * Run the Claude extractor on a statement file. Returns a ParseResult tagged
  * `parser: "claude"`. Throws if the model call fails or returns no parseable
@@ -220,7 +137,7 @@ export async function claudeExtract(input: ParseInput): Promise<ParseResult> {
 
   const raw = toRawStatement(parsed, input.hintCurrency);
   const confidence =
-    raw.transactions.length > 0 ? CLAUDE_BASE_CONFIDENCE : 0.2;
+    raw.transactions.length > 0 ? LLM_BASE_CONFIDENCE : 0.2;
 
   return {
     parser: "claude",
