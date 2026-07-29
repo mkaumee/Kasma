@@ -103,6 +103,12 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
 5. **Set variables on BOTH services** (worker needs DB + storage + the LLM key;
    web needs all of it):
 
+   > **A platform variables UI is not a `.env` file.** Enter values **unquoted**.
+   > A `.env` file is parsed by dotenv, which strips surrounding quotes; Railway
+   > stores exactly what you type, so `NODE_ENV="production"` becomes the
+   > 12-character string *including the quotes*. Kasma now trims and unquotes
+   > values defensively, but other tools in your stack won't.
+
    ```
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    AUTH_SECRET=<openssl rand -base64 32>
@@ -115,11 +121,15 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
    DEEPSEEK_API_KEY=<key>     # default provider (text-only: CSV/text + digital PDFs)
    # ANTHROPIC_API_KEY=<key>  # add for vision (scanned PDFs / images)
    RESEND_API_KEY=<key>
-   EMAIL_FROM="Kasma <notifications@yourdomain>"
+   EMAIL_FROM=Kasma <notifications@yourdomain>
    ```
 
    Reference Postgres with `${{Postgres.DATABASE_URL}}` so both services share
    the same database (the pg-boss queue also lives there — no Redis needed).
+
+   **`NODE_ENV` is not required** and should be left unset — nothing in the app
+   reads it. If your platform injects a blank or unexpected value, Kasma logs a
+   warning and continues rather than refusing to start.
 6. **Deploy.** The web service's start command runs `prisma migrate deploy`
    before `next start`, so migrations apply automatically. Railway probes
    `/api/health` until the app + DB are ready.

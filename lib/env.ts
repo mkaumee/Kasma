@@ -20,10 +20,57 @@ if (typeof window !== "undefined") {
     "lib/env.ts is server-only and must not be imported from client code.",
   );
 }
+
+/**
+ * Normalize raw environment values before validation.
+ *
+ * Values reaching `process.env` from a hosting platform are used verbatim, while
+ * the same line in a `.env` file is parsed by dotenv, which trims it and strips
+ * one layer of matched quotes. That asymmetry means `NODE_ENV="production"`
+ * works locally and fails in production — and an empty string counts as "set",
+ * so `.default()` never fires and a blank variable becomes a hard crash.
+ *
+ * This closes the gap: trim, strip one matched pair of surrounding quotes, and
+ * treat the result as absent when empty. Nothing else is coerced — a genuinely
+ * wrong value must still be rejected.
+ */
+export function normalizeEnv(
+  raw: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value !== "string") {
+      out[key] = value;
+      continue;
+    }
+    let v = value.trim();
+    if (
+      v.length >= 2 &&
+      ((v.startsWith('"') && v.endsWith('"')) ||
+        (v.startsWith("'") && v.endsWith("'")))
+    ) {
+      v = v.slice(1, -1).trim();
+    }
+    out[key] = v === "" ? undefined : v;
+  }
+  return out;
+}
+
 const envSchema = z.object({
+  // Nothing in the app reads `env.NODE_ENV` — the only consumers (Prisma log
+  // level and the hot-reload guard in lib/db/client.ts) read `process.env`
+  // directly and fall through safely on an unrecognized value. So an odd value
+  // here must never take a process down: `.catch()` degrades to production (a
+  // container with NODE_ENV set is a deployment) instead of throwing.
   NODE_ENV: z
     .enum(["development", "test", "production"])
-    .default("development"),
+    .default("development")
+    .catch(({ value }) => {
+      console.warn(
+        `⚠️  NODE_ENV is ${JSON.stringify(value)}, which is not one of development | test | production. Continuing as "production".`,
+      );
+      return "production";
+    }),
   NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
 
   // Phase 1 — database
@@ -73,12 +120,52 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().min(1).default("Kasma <notifications@kasma.local>"),
 });
 
-const parsed = envSchema.safeParse(process.env);
+/** Keys whose values must never be written to a log. */
+const SECRET_KEY = /KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|DATABASE_URL/i;
+
+/**
+ * Render validation failures with the value that was actually received.
+ *
+ * Zod 4 dropped `received` from `invalid_value` issues — they carry only the
+ * expected options — so printing `error.issues` can never explain what went
+ * wrong. (That is exactly how a blank NODE_ENV crash-looped a worker while the
+ * log helpfully listed the three values it already knew about.) The value is
+ * therefore looked up from the raw input by path.
+ *
+ * Secrets report a length only; this text goes to deploy logs.
+ */
+export function describeEnvIssues(
+  issues: readonly z.core.$ZodIssue[],
+  raw: Record<string, string | undefined>,
+): string {
+  return issues
+    .map((issue) => {
+      const key = String(issue.path[0] ?? "(root)");
+      const value = raw[key];
+
+      let shown: string;
+      if (SECRET_KEY.test(key)) {
+        shown =
+          value === undefined
+            ? "missing"
+            : value === ""
+              ? "empty"
+              : `set (${value.length} chars)`;
+      } else {
+        shown = value === undefined ? "missing" : JSON.stringify(value);
+      }
+
+      return `  ${key} — received ${shown}; ${issue.message}`;
+    })
+    .join("\n");
+}
+
+const rawEnv = normalizeEnv(process.env);
+const parsed = envSchema.safeParse(rawEnv);
 
 if (!parsed.success) {
   console.error(
-    "❌ Invalid environment variables:\n",
-    JSON.stringify(parsed.error.issues, null, 2),
+    `❌ Invalid environment variables:\n${describeEnvIssues(parsed.error.issues, rawEnv)}\n`,
   );
   throw new Error("Invalid environment variables");
 }
