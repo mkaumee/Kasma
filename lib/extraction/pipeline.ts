@@ -2,6 +2,11 @@ import { Prisma, StatementStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/db/client";
 import { dedupeHash, flagDuplicates } from "@/lib/extraction/dedupe";
+import {
+  extractStatementMetadata,
+  mergeStatementMetadata,
+  needsBalanceMetadata,
+} from "@/lib/extraction/metadata";
 import { normalizeStatement } from "@/lib/extraction/normalize";
 import { parseStatement } from "@/lib/extraction/parsers";
 import {
@@ -109,9 +114,24 @@ export async function processStatement(
       hintCurrency: statement.bankAccount.currency,
     });
 
-    const normalized = normalizeStatement(parseResult.raw, {
+    let normalized = normalizeStatement(parseResult.raw, {
       fallbackCurrency: statement.bankAccount.currency,
     });
+
+    // The deterministic parsers read rows but never the summary block, so most
+    // statements arrive with no balance the validator can check against — which
+    // sends them all to NEEDS_REVIEW. When that's the case, ask the LLM to read
+    // the printed opening/closing balance off the document. Best-effort: a
+    // failure here just leaves the statement unverifiable, as before.
+    if (needsBalanceMetadata(normalized)) {
+      const meta = await extractStatementMetadata({
+        bytes,
+        filename: statement.originalFilename ?? "statement",
+        hintCurrency: statement.bankAccount.currency,
+      });
+      if (meta) normalized = mergeStatementMetadata(normalized, meta);
+    }
+
     const validation = validateStatement(normalized, {
       parserConfidence: parseResult.confidence,
     });
@@ -191,6 +211,8 @@ export async function processStatement(
             currency: normalized.currency,
             openingBalance: normalized.openingBalance,
             closingBalance: normalized.closingBalance,
+            openingBalanceInferred: normalized.openingBalanceInferred,
+            closingBalanceInferred: normalized.closingBalanceInferred,
             parserUsed: parseResult.parser,
             confidence: validation.confidence,
             rawExtractionKey,

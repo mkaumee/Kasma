@@ -249,6 +249,8 @@ export default async function StatementDetailPage({
                   ? minorToDecimalString(statement.closingBalance, currency)
                   : null
               }
+              openingInferred={statement.openingBalanceInferred}
+              closingInferred={statement.closingBalanceInferred}
               initialRows={statement.transactions.map((t) => ({
                 id: t.id,
                 date: t.date.toISOString().slice(0, 10),
@@ -276,6 +278,11 @@ export default async function StatementDetailPage({
                       index: b.index,
                       gap: b.gap.toString(),
                     })),
+                    hasOpening: statement.openingBalance != null,
+                    hasClosing: statement.closingBalance != null,
+                    derivedOnly:
+                      statement.openingBalanceInferred &&
+                      statement.closingBalanceInferred,
                   }}
                 />
               )}

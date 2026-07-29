@@ -104,6 +104,15 @@ export type BalanceInput = {
   openingBalance: bigint | null;
   closingBalance: bigint | null;
   rows: BalanceRow[];
+  /**
+   * Whether each balance was derived from the rows rather than read off the
+   * statement (see NormalizedStatement). When BOTH are derived the closing
+   * identity `opening + Σamounts == closing` holds by construction, so it
+   * proves nothing and is skipped — otherwise a statement nobody verified
+   * would report as fully reconciled.
+   */
+  openingBalanceInferred?: boolean;
+  closingBalanceInferred?: boolean;
 };
 
 /**
@@ -123,8 +132,15 @@ export function validateBalances(
   const opening = input.openingBalance;
   const statedClosing = input.closingBalance;
   const computedClosing = opening != null ? opening + sumAmounts : null;
+
+  // Both sides derived from the rows ⇒ the identity is circular; it would pass
+  // for any set of rows whose continuity holds, so it is not evidence.
+  const circular =
+    input.openingBalanceInferred === true &&
+    input.closingBalanceInferred === true;
+
   const closingDelta =
-    computedClosing != null && statedClosing != null
+    !circular && computedClosing != null && statedClosing != null
       ? computedClosing - statedClosing
       : null;
   const closingOk =
@@ -184,6 +200,8 @@ export function validateStatement(
     {
       openingBalance: statement.openingBalance,
       closingBalance: statement.closingBalance,
+      openingBalanceInferred: statement.openingBalanceInferred,
+      closingBalanceInferred: statement.closingBalanceInferred,
       rows: statement.transactions.map((t) => ({
         amount: t.amount,
         balance: t.balance,

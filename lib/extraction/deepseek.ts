@@ -31,15 +31,22 @@ import { env } from "@/lib/env";
 /** Minimum extracted characters for a PDF's text layer to be usable. */
 const DIGITAL_TEXT_THRESHOLD = 40;
 
-/** DeepSeek chat completions cap output at 8192 tokens; leave a little room. */
-const MAX_OUTPUT_TOKENS = 8000;
+/**
+ * Output budget. DeepSeek V4 allows up to 384K output tokens; a long statement
+ * can easily exceed the old 8K cap, and a truncated JSON object fails to parse
+ * entirely (worse than a short one). Generous ceiling, billed on actual usage.
+ */
+const MAX_OUTPUT_TOKENS = 64_000;
 
 /** Per-request timeout and transient-retry budget for the HTTP call. */
 const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_ATTEMPTS = 3;
 
+// DeepSeek's JSON mode requires the literal word "json" to appear in the system
+// or user prompt, and works best when shown the exact shape to emit. Keep both.
 const JSON_INSTRUCTIONS = [
   "",
+  "Output format: json.",
   "Respond with ONLY a single JSON object (no markdown fences, no commentary)",
   "matching exactly this shape:",
   "{",
@@ -107,7 +114,7 @@ function coerceStatement(obj: unknown): LlmStatement {
 }
 
 /** Strip an accidental ```json fence the model may wrap the object in. */
-function stripFence(content: string): string {
+export function stripFence(content: string): string {
   const trimmed = content.trim();
   if (trimmed.startsWith("```")) {
     return trimmed
@@ -118,23 +125,47 @@ function stripFence(content: string): string {
   return trimmed;
 }
 
-type DeepSeekChoice = { message?: { content?: string } };
+type DeepSeekChoice = {
+  // On a thinking-mode model the chain-of-thought arrives as a separate
+  // `reasoning_content` field; the answer is always in `content`. We never send
+  // `thinking`, but read `content` explicitly so a server-side default can't
+  // feed us reasoning text as if it were the JSON payload.
+  message?: { content?: string; reasoning_content?: string };
+  finish_reason?: string;
+};
 type DeepSeekResponse = { choices?: DeepSeekChoice[]; usage?: unknown };
 
-/** Call DeepSeek's chat-completions endpoint with JSON mode + transient retries. */
-async function callDeepSeek(
+/** Raised when the model hit the token ceiling and the JSON is cut off. */
+export class DeepSeekTruncatedError extends Error {
+  constructor() {
+    super("DeepSeek response truncated at the output-token limit");
+    this.name = "DeepSeekTruncatedError";
+  }
+}
+
+/**
+ * Call DeepSeek's chat-completions endpoint with JSON mode + transient retries.
+ * Exported so the metadata pass (lib/extraction/metadata.ts) can reuse the same
+ * transport, retry policy, and truncation handling with a different prompt.
+ *
+ * We deliberately send no `thinking` key: V4's default is non-thinking, which
+ * is faster, cheaper, and more reliable for structured extraction.
+ */
+export async function callDeepSeek(
   userText: string,
+  systemPrompt: string = `${SYSTEM_PROMPT}\n${JSON_INSTRUCTIONS}`,
+  maxTokens: number = MAX_OUTPUT_TOKENS,
 ): Promise<{ content: string; usage: unknown }> {
   const url = `${env.DEEPSEEK_BASE_URL.replace(/\/$/, "")}/chat/completions`;
   const body = JSON.stringify({
     model: env.DEEPSEEK_MODEL,
     messages: [
-      { role: "system", content: `${SYSTEM_PROMPT}\n${JSON_INSTRUCTIONS}` },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userText },
     ],
     response_format: { type: "json_object" },
     temperature: 0,
-    max_tokens: MAX_OUTPUT_TOKENS,
+    max_tokens: maxTokens,
     stream: false,
   });
 
@@ -164,7 +195,12 @@ async function callDeepSeek(
       }
 
       const json = (await res.json()) as DeepSeekResponse;
-      const content = json.choices?.[0]?.message?.content;
+      const choice = json.choices?.[0];
+      // finish_reason "length" means we hit MAX_OUTPUT_TOKENS: the JSON is cut
+      // off mid-object, so parsing it would fail with a misleading error.
+      if (choice?.finish_reason === "length") throw new DeepSeekTruncatedError();
+
+      const content = choice?.message?.content;
       if (typeof content !== "string" || content.trim() === "") {
         throw new Error("DeepSeek returned an empty completion");
       }
@@ -237,7 +273,23 @@ export async function deepseekExtract(input: ParseInput): Promise<ParseResult> {
     ? `Extract this bank statement. The account currency is likely ${input.hintCurrency} if the statement does not state one.`
     : "Extract this bank statement.";
 
-  const { content, usage } = await callDeepSeek(`${instruction}\n\n----\n${text}`);
+  let content: string;
+  let usage: unknown;
+  try {
+    ({ content, usage } = await callDeepSeek(`${instruction}\n\n----\n${text}`));
+  } catch (error) {
+    // Truncation is a distinct, actionable failure (raise MAX_OUTPUT_TOKENS or
+    // split the statement) — don't let it look like a generic parse failure.
+    if (error instanceof DeepSeekTruncatedError) {
+      return {
+        parser: "deepseek",
+        confidence: 0.05,
+        raw: { currency: input.hintCurrency ?? null, transactions: [] },
+        meta: { model: env.DEEPSEEK_MODEL, error: "deepseek-truncated" },
+      };
+    }
+    throw error;
+  }
 
   let parsed: LlmStatement;
   try {

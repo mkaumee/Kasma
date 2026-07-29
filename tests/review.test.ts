@@ -164,4 +164,62 @@ describe("applyStatementRowEdits", () => {
     });
     expect(res.error).toMatch(/identical/i);
   });
+
+  test("a reviewer's balance correction is recorded as read, not derived", async () => {
+    const { org, statement } = await seed();
+    await prisma.statement.update({
+      where: { id: statement.id },
+      data: { openingBalanceInferred: true, closingBalanceInferred: true },
+    });
+
+    // Both differ from the seeded 1000.00 / 2495.50, i.e. a real correction.
+    const res = await applyStatementRowEdits(org.id, null, {
+      statementId: statement.id,
+      rows: [row("2026-06-01", "X", "-4.50", "1495.50")],
+      openingBalance: "1500.00",
+      closingBalance: "1495.50",
+    });
+    expect(res.ok).toBe(true);
+
+    const after = await prisma.statement.findUniqueOrThrow({
+      where: { id: statement.id },
+    });
+    expect(after.openingBalance).toBe(150000n);
+    expect(after.closingBalance).toBe(149550n);
+    expect(after.openingBalanceInferred).toBe(false);
+    expect(after.closingBalanceInferred).toBe(false);
+    // Corrected balances now genuinely verify the row → off NEEDS_REVIEW.
+    expect(after.status).toBe("PARSED");
+  });
+
+  test("saving without touching derived balances keeps them derived", async () => {
+    // Regression: the editor always submits both fields, so an unchanged value
+    // must not be promoted to "read" — that would turn a circular (and thus
+    // unverifiable) balance pair into a false "reconciles" on the next save.
+    const { org, statement } = await seed();
+    await prisma.statement.update({
+      where: { id: statement.id },
+      data: {
+        openingBalance: 100000n,
+        closingBalance: 249550n,
+        openingBalanceInferred: true,
+        closingBalanceInferred: true,
+      },
+    });
+
+    const res = await applyStatementRowEdits(org.id, null, {
+      statementId: statement.id,
+      rows: [row("2026-06-01", "X", "-4.50", "995.50")],
+      // Resubmitted unchanged, exactly as the editor sends them.
+      openingBalance: "1000.00",
+      closingBalance: "2495.50",
+    });
+    expect(res.ok).toBe(true);
+
+    const after = await prisma.statement.findUniqueOrThrow({
+      where: { id: statement.id },
+    });
+    expect(after.openingBalanceInferred).toBe(true);
+    expect(after.closingBalanceInferred).toBe(true);
+  });
 });

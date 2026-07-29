@@ -158,6 +158,11 @@ model Statement {
   periodEnd        DateTime?
   openingBalance   BigInt?
   closingBalance   BigInt?
+  /// True when the balance was derived from the rows rather than read off the
+  /// statement. Both derived ⇒ the closing check is circular and is skipped
+  /// (see lib/extraction/validate.ts).
+  openingBalanceInferred Boolean @default(false)
+  closingBalanceInferred Boolean @default(false)
   currency         String?
   status           StatementStatus @default(UPLOADED)
   source           StatementSource @default(UPLOAD)

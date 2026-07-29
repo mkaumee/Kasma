@@ -25,8 +25,8 @@ Copy `.env.example` and fill in:
 | `STORAGE_DRIVER` | prod | `s3` (object storage), `db` (Postgres — no external store), or unset for local disk (dev only). |
 | `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | with S3 | Object storage credentials (only when `STORAGE_DRIVER=s3`). |
 | `EXTRACTION_PROVIDER` | optional | LLM fallback preference: `auto` (default — DeepSeek for text, Claude for scans/images when configured), `deepseek`, or `anthropic`. |
-| `DEEPSEEK_API_KEY` | optional | Enables the DeepSeek fallback extractor (default provider) for CSV/text and digital PDFs. Text-only — cannot read scanned PDFs/images. |
-| `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL` | optional | Default `deepseek-chat` / `https://api.deepseek.com`. |
+| `DEEPSEEK_API_KEY` | optional | Enables the DeepSeek extractor (default provider) for CSV/text and digital PDFs, and the statement-metadata pass below. Text-only — cannot read scanned PDFs/images. |
+| `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL` | optional | Default `deepseek-v4-pro` / `https://api.deepseek.com`. Set `deepseek-v4-flash` for a cheaper, faster tier. The legacy `deepseek-chat` / `deepseek-reasoner` IDs were **retired 2026-07-24** and will fail. |
 | `ANTHROPIC_API_KEY` | optional | Enables the Claude vision fallback for scanned PDFs/images DeepSeek can't read. Without any LLM key, the deterministic CSV/Excel/PDF parsers still run. |
 | `ANTHROPIC_EXTRACTION_MODEL` | optional | Defaults to a cost-efficient model. |
 | `LLM_REDACT_PII` | optional | `true` (default) masks likely account numbers before sending text to any LLM. |
@@ -35,6 +35,26 @@ Copy `.env.example` and fill in:
 
 **Secrets never ship to the client** — only `NEXT_PUBLIC_*` values are exposed
 to the browser, and `lib/env.ts` fails fast on invalid configuration.
+
+### Statement balances (why an LLM key matters)
+
+A statement is verified against its own running balance, so Kasma needs an
+opening and closing figure. It gets them in this order:
+
+1. **From the statement**, when a parser reads them directly.
+2. **Derived from the rows'** running-balance column, when there is one. These
+   are marked as derived: if *both* ends are derived, `opening + Σamounts ==
+   closing` is true by construction, so it is **not** treated as verification.
+3. **Read by the LLM** — when 1 and 2 leave nothing checkable, the extractor
+   sends just the head and tail of the document (where banks print
+   "Opening/Closing Balance") and asks for those figures only. This is one small
+   call, skipped whenever the balances are already known.
+4. **Corrected by a reviewer** in the statement review screen, if a figure is
+   wrong. Never required at upload.
+
+Without any LLM key, steps 1–2 still run, but statements whose balances are only
+printed in a summary block will land in **needs-review** with nothing to verify
+against. Setting `DEEPSEEK_API_KEY` on the **worker** is what enables step 3.
 
 ## First deploy
 

@@ -37,6 +37,21 @@ export type NormalizedStatement = {
   periodEnd: Date | null;
   openingBalance: bigint | null;
   closingBalance: bigint | null;
+  /**
+   * Balance provenance. `true` means the figure was *derived from the rows*
+   * rather than read off the statement.
+   *
+   * This matters for correctness, not bookkeeping: an opening derived from
+   * `row[0].balance - row[0].amount` together with a closing taken from
+   * `lastRow.balance` makes `opening + Σamounts == closing` true by algebra
+   * whenever row continuity holds. Treating that as a passing closing check
+   * would manufacture proof out of nothing. The validator therefore only runs
+   * the closing check when at least one side was genuinely read (see
+   * validate.ts). The derived values are still useful for display and for
+   * cross-statement continuity (MISSING_STATEMENT detection).
+   */
+  openingBalanceInferred: boolean;
+  closingBalanceInferred: boolean;
   transactions: NormalizedTransaction[];
   /** Rows that could not be normalized (missing a date or an amount). */
   dropped: number;
@@ -69,7 +84,7 @@ function cleanOptional(raw: string | null | undefined): string | null {
 }
 
 /** Parse a signed money value (handles parentheses-negatives and symbols). */
-function parseSignedMoney(
+export function parseSignedMoney(
   raw: string | number | null | undefined,
   currency: string,
 ): bigint | null {
@@ -187,6 +202,40 @@ function normalizeRow(
   };
 }
 
+/**
+ * Derive the statement's opening/closing balance from the rows' printed running
+ * balance, for the many statements (every CSV/XLSX/PDF-table one) that carry a
+ * balance column but no summary figures. Only fills what is missing — a value
+ * read off the statement always wins.
+ *
+ * opening = firstBalanceRow.balance − firstBalanceRow.amount (the balance
+ * *before* that row); closing = lastBalanceRow.balance.
+ */
+function inferBalances(
+  transactions: NormalizedTransaction[],
+  printedOpening: bigint | null,
+  printedClosing: bigint | null,
+): {
+  openingBalance: bigint | null;
+  closingBalance: bigint | null;
+  openingBalanceInferred: boolean;
+  closingBalanceInferred: boolean;
+} {
+  const first = transactions.find((t) => t.balance != null);
+  const last = [...transactions].reverse().find((t) => t.balance != null);
+
+  const opening =
+    printedOpening ?? (first ? first.balance! - first.amount : null);
+  const closing = printedClosing ?? last?.balance ?? null;
+
+  return {
+    openingBalance: opening,
+    closingBalance: closing,
+    openingBalanceInferred: printedOpening == null && opening != null,
+    closingBalanceInferred: printedClosing == null && closing != null,
+  };
+}
+
 /** Normalize a raw statement into canonical transactions. */
 export function normalizeStatement(
   raw: RawStatement,
@@ -203,14 +252,19 @@ export function normalizeStatement(
     else dropped += 1;
   }
 
+  const balances = inferBalances(
+    transactions,
+    parseSignedMoney(raw.openingBalance, currency),
+    parseSignedMoney(raw.closingBalance, currency),
+  );
+
   return {
     currency,
     bankName: cleanOptional(raw.bankName),
     accountLast4: sanitizeLast4(raw.accountLast4),
     periodStart: parseStatementDate(raw.periodStart, order),
     periodEnd: parseStatementDate(raw.periodEnd, order),
-    openingBalance: parseSignedMoney(raw.openingBalance, currency),
-    closingBalance: parseSignedMoney(raw.closingBalance, currency),
+    ...balances,
     transactions,
     dropped,
   };

@@ -27,6 +27,15 @@ export const reviewRowSchema = z.object({
 export const reviewSchema = z.object({
   statementId: z.string().min(1),
   rows: z.array(reviewRowSchema).max(5000),
+  /**
+   * Optional reviewer corrections to the statement's opening/closing balance.
+   * Never required at upload — the extractor reads them off the document — but
+   * a reviewer holding the paper statement can fix a misread figure, which is
+   * the only way a statement the AI couldn't read gets a real verification.
+   * An empty string clears the value; omitted leaves it untouched.
+   */
+  openingBalance: z.string().optional(),
+  closingBalance: z.string().optional(),
 });
 
 export type ReviewInput = z.input<typeof reviewSchema>;
@@ -51,7 +60,12 @@ export async function applyStatementRowEdits(
 ): Promise<ReviewResult> {
   const parsed = reviewSchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid data." };
-  const { statementId, rows } = parsed.data;
+  const {
+    statementId,
+    rows,
+    openingBalance: openingInput,
+    closingBalance: closingInput,
+  } = parsed.data;
 
   const statement = await prisma.statement.findFirst({
     where: { id: statementId, organizationId },
@@ -112,10 +126,48 @@ export async function applyStatementRowEdits(
   const submittedIds = new Set(prepared.filter((p) => p.id).map((p) => p.id!));
   const toDelete = [...existingIds].filter((id) => !submittedIds.has(id));
 
+  // Reviewer balance corrections. Omitted → keep what's stored; "" → clear;
+  // a *changed* value → treat as read off the statement by a human, which is
+  // independent evidence for the closing check.
+  //
+  // An unchanged value must keep its stored provenance. The editor always
+  // submits both fields, so clearing the flag on every save would silently
+  // promote a row-derived (circular, unverifiable) pair to "verified" the first
+  // time anyone pressed Save without touching them.
+  function resolveBalance(
+    submitted: string | undefined,
+    stored: bigint | null,
+    storedInferred: boolean,
+  ): { value: bigint | null; inferred: boolean; invalid?: true } {
+    if (submitted === undefined) return { value: stored, inferred: storedInferred };
+    const trimmed = submitted.trim();
+    if (trimmed === "") return { value: null, inferred: false };
+    const parsedValue = parseMoney(trimmed, currency);
+    if (parsedValue == null) return { value: stored, inferred: storedInferred, invalid: true };
+    if (parsedValue === stored) return { value: stored, inferred: storedInferred };
+    return { value: parsedValue, inferred: false };
+  }
+
+  const opening = resolveBalance(
+    openingInput,
+    statement.openingBalance,
+    statement.openingBalanceInferred,
+  );
+  if (opening.invalid) return { error: `Invalid opening balance: “${openingInput}”` };
+
+  const closing = resolveBalance(
+    closingInput,
+    statement.closingBalance,
+    statement.closingBalanceInferred,
+  );
+  if (closing.invalid) return { error: `Invalid closing balance: “${closingInput}”` };
+
   const recon = validateBalances(
     {
-      openingBalance: statement.openingBalance,
-      closingBalance: statement.closingBalance,
+      openingBalance: opening.value,
+      closingBalance: closing.value,
+      openingBalanceInferred: opening.inferred,
+      closingBalanceInferred: closing.inferred,
       rows: prepared.map((p) => ({ amount: p.amount, balance: p.balance })),
     },
     { parserConfidence: statement.confidence ?? 0.5 },
@@ -185,7 +237,14 @@ export async function applyStatementRowEdits(
         }
         await tx.statement.update({
           where: { id: statementId },
-          data: { status, confidence: recon.confidence },
+          data: {
+            status,
+            confidence: recon.confidence,
+            openingBalance: opening.value,
+            closingBalance: closing.value,
+            openingBalanceInferred: opening.inferred,
+            closingBalanceInferred: closing.inferred,
+          },
         });
       },
       { timeout: 60_000, maxWait: 10_000 },

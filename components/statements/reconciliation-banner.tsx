@@ -10,6 +10,14 @@ export type ReconciliationSummary = {
   /** Signed minor-unit string, or null. */
   closingDelta: string | null;
   breaks: { index: number; gap: string }[];
+  /** Whether the statement has an opening / closing figure at all. */
+  hasOpening?: boolean;
+  hasClosing?: boolean;
+  /**
+   * Both figures were derived from the rows, so `opening + Σamounts == closing`
+   * holds by construction and proves nothing (see validate.ts).
+   */
+  derivedOnly?: boolean;
 };
 
 /**
@@ -73,11 +81,33 @@ function describe(
     };
   }
   if (tone === "unknown") {
+    // Be specific about *why* nothing could be checked — the old copy claimed
+    // "no opening/closing balance" even when one of the two was present and
+    // displayed right above this banner.
+    if (summary.derivedOnly) {
+      return {
+        icon: HelpCircle,
+        title: "Balances were derived from the rows",
+        detail:
+          "This statement prints no opening or closing balance, so both were computed from the transactions themselves — they can't independently confirm the extraction. Review the rows below.",
+      };
+    }
+    const hasOpening = summary.hasOpening ?? false;
+    const hasClosing = summary.hasClosing ?? false;
+    if (hasOpening !== hasClosing) {
+      const present = hasOpening ? "opening" : "closing";
+      const missing = hasOpening ? "closing" : "opening";
+      return {
+        icon: HelpCircle,
+        title: `No ${missing} balance to verify against`,
+        detail: `This statement has an ${present} balance but no ${missing} one, so the totals can't be cross-checked automatically. Add it above, or review the rows below.`,
+      };
+    }
     return {
       icon: HelpCircle,
       title: "No running balance to verify against",
       detail:
-        "This statement carries no opening/closing balance, so extraction can't be cross-checked automatically. Review the rows below.",
+        "This statement carries no opening or closing balance, so extraction can't be cross-checked automatically. Add them above if you have the statement to hand, or review the rows below.",
     };
   }
 

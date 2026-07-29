@@ -15,7 +15,13 @@ import { validateStatement, type ValidationResult } from "@/lib/extraction/valid
 
 export type ReconcileStatement = Pick<
   Statement,
-  "currency" | "openingBalance" | "closingBalance" | "periodStart" | "periodEnd"
+  | "currency"
+  | "openingBalance"
+  | "closingBalance"
+  | "openingBalanceInferred"
+  | "closingBalanceInferred"
+  | "periodStart"
+  | "periodEnd"
 >;
 
 export type ReconcileTransaction = Pick<
@@ -46,6 +52,10 @@ export function toNormalizedStatement(
     periodEnd: statement.periodEnd,
     openingBalance: statement.openingBalance,
     closingBalance: statement.closingBalance,
+    // Carried through so a re-reconciliation can't treat row-derived balances
+    // as independent evidence (the circularity guard in validate.ts).
+    openingBalanceInferred: statement.openingBalanceInferred,
+    closingBalanceInferred: statement.closingBalanceInferred,
     transactions: transactions.map(
       (t): NormalizedTransaction => ({
         date: t.date,

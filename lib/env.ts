@@ -50,8 +50,11 @@ const envSchema = z.object({
     .default("auto"),
 
   // DeepSeek (default fallback provider) — OpenAI-compatible chat completions.
+  // NOTE: the legacy `deepseek-chat` / `deepseek-reasoner` IDs were discontinued
+  // on 2026-07-24; the current models are deepseek-v4-pro and deepseek-v4-flash.
+  // Override with DEEPSEEK_MODEL to run the cheaper flash tier.
   DEEPSEEK_API_KEY: z.string().min(1).optional(),
-  DEEPSEEK_MODEL: z.string().min(1).default("deepseek-chat"),
+  DEEPSEEK_MODEL: z.string().min(1).default("deepseek-v4-pro"),
   DEEPSEEK_BASE_URL: z.url().default("https://api.deepseek.com"),
 
   // Anthropic (Claude) — kept as the vision provider for scanned PDFs/images.

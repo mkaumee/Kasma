@@ -29,12 +29,17 @@ export function StatementReviewEditor({
   currency,
   openingBalance,
   closingBalance,
+  openingInferred = false,
+  closingInferred = false,
   initialRows,
 }: {
   statementId: string;
   currency: string;
   openingBalance: string | null;
   closingBalance: string | null;
+  /** Balance was derived from the rows, not read off the statement. */
+  openingInferred?: boolean;
+  closingInferred?: boolean;
   initialRows: EditorRow[];
 }) {
   const router = useRouter();
@@ -42,6 +47,10 @@ export function StatementReviewEditor({
     rows.map((r) => ({ ...r, key: crypto.randomUUID() }));
 
   const [rows, setRows] = useState<LocalRow[]>(() => makeRows(initialRows));
+  // Reviewer-editable statement balances. The extractor fills these; a reviewer
+  // only corrects a misread figure. Editing them re-runs validation live.
+  const [opening, setOpening] = useState(openingBalance ?? "");
+  const [closing, setClosing] = useState(closingBalance ?? "");
   const [pending, startTransition] = useTransition();
 
   const parsed = rows.map((r) => {
@@ -57,13 +66,22 @@ export function StatementReviewEditor({
   });
   const hasInvalid = parsed.some((p) => !p.amountValid || !p.balanceValid);
 
+  const openingTrim = opening.trim();
+  const closingTrim = closing.trim();
+  const openingValue = openingTrim === "" ? null : parseMoney(openingTrim, currency);
+  const closingValue = closingTrim === "" ? null : parseMoney(closingTrim, currency);
+  const openingInvalid = openingTrim !== "" && openingValue === null;
+  const closingInvalid = closingTrim !== "" && closingValue === null;
+
   const summary = useMemo(() => {
-    const opening = openingBalance ? parseMoney(openingBalance, currency) : null;
-    const closing = closingBalance ? parseMoney(closingBalance, currency) : null;
     const v = validateBalances(
       {
-        openingBalance: opening,
-        closingBalance: closing,
+        openingBalance: openingValue,
+        closingBalance: closingValue,
+        // A balance the reviewer typed is read, not derived — so it counts as
+        // independent evidence and un-blocks the closing check.
+        openingBalanceInferred: openingInferred && openingTrim === (openingBalance ?? ""),
+        closingBalanceInferred: closingInferred && closingTrim === (closingBalance ?? ""),
         rows: parsed.map((p) => ({ amount: p.amount, balance: p.balance })),
       },
       { parserConfidence: 0.5 },
@@ -74,9 +92,13 @@ export function StatementReviewEditor({
       closingOk: v.closingOk,
       closingDelta: v.closingDelta?.toString() ?? null,
       breaks: v.breaks.map((b) => ({ index: b.index, gap: b.gap.toString() })),
+      hasOpening: openingValue != null,
+      hasClosing: closingValue != null,
+      derivedOnly:
+        openingValue != null && closingValue != null && v.closingOk === null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, currency, openingBalance, closingBalance]);
+  }, [rows, currency, openingTrim, closingTrim]);
 
   function update(key: string, field: keyof EditorRow, value: string) {
     setRows((prev) =>
@@ -105,6 +127,8 @@ export function StatementReviewEditor({
 
   function reset() {
     setRows(makeRows(initialRows));
+    setOpening(openingBalance ?? "");
+    setClosing(closingBalance ?? "");
   }
 
   function save() {
@@ -112,9 +136,15 @@ export function StatementReviewEditor({
       toast.error("Fix the highlighted amounts before saving.");
       return;
     }
+    if (openingInvalid || closingInvalid) {
+      toast.error("Fix the statement balances before saving.");
+      return;
+    }
     startTransition(async () => {
       const res = await saveStatementRowsAction({
         statementId,
+        openingBalance: opening,
+        closingBalance: closing,
         rows: rows.map((r) => ({
           id: r.id,
           date: r.date,
@@ -136,6 +166,43 @@ export function StatementReviewEditor({
   return (
     <div>
       <ReconciliationBanner currency={currency} summary={summary} />
+
+      <div className="grid gap-3 border-b px-3 py-3 sm:grid-cols-2">
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Opening balance ({currency})
+            {openingInferred && openingTrim === (openingBalance ?? "") ? (
+              <span className="ml-1 normal-case tracking-normal">— derived from rows</span>
+            ) : null}
+          </span>
+          <Input
+            inputMode="decimal"
+            placeholder="Not found on the statement"
+            value={opening}
+            onChange={(e) => setOpening(e.target.value)}
+            className={cn("text-right tabular-nums", openingInvalid && "border-destructive")}
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Closing balance ({currency})
+            {closingInferred && closingTrim === (closingBalance ?? "") ? (
+              <span className="ml-1 normal-case tracking-normal">— derived from rows</span>
+            ) : null}
+          </span>
+          <Input
+            inputMode="decimal"
+            placeholder="Not found on the statement"
+            value={closing}
+            onChange={(e) => setClosing(e.target.value)}
+            className={cn("text-right tabular-nums", closingInvalid && "border-destructive")}
+          />
+        </label>
+        <p className="text-xs text-muted-foreground sm:col-span-2">
+          Read from the statement automatically. Correct them only if a figure is
+          wrong — the running balance is what verifies the extracted rows.
+        </p>
+      </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

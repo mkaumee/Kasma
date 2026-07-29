@@ -29,6 +29,9 @@ const statement = {
   currency: "USD",
   openingBalance: 100000n,
   closingBalance: 249550n,
+  // Read off the statement, not derived from the rows.
+  openingBalanceInferred: false,
+  closingBalanceInferred: false,
   periodStart: null,
   periodEnd: null,
 };
