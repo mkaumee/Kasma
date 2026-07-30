@@ -33,8 +33,13 @@ import { env } from "@/lib/env";
 /** Characters taken from each end of the document. Summary blocks are small. */
 const SLICE_CHARS = 8_000;
 
-/** Metadata is a handful of short fields; no need for a large output budget. */
-const MAX_OUTPUT_TOKENS = 1_500;
+/**
+ * Metadata is a handful of short fields, but keep headroom: this was originally
+ * sized at 1,500 on the assumption that no reasoning tokens would be emitted,
+ * and V4 Pro's default-on thinking mode consumed the whole budget before
+ * producing any JSON.
+ */
+const MAX_OUTPUT_TOKENS = 4_000;
 
 /** Minimum extracted characters for a PDF's text layer to be usable. */
 const DIGITAL_TEXT_THRESHOLD = 40;

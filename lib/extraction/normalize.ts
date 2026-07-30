@@ -1,6 +1,7 @@
 import { TxnDirection, TxnType } from "@prisma/client";
 
 import { parseStatementDate, type DateOrder } from "@/lib/extraction/dates";
+import { redactAccountNumbers } from "@/lib/extraction/llm-schema";
 import type { RawStatement, RawTransactionRow } from "@/lib/extraction/types";
 import { isCurrencyCode, parseMoney } from "@/lib/money/currency";
 
@@ -55,7 +56,25 @@ export type NormalizedStatement = {
   transactions: NormalizedTransaction[];
   /** Rows that could not be normalized (missing a date or an amount). */
   dropped: number;
+  /**
+   * Why rows were dropped, capped and redacted. A bare count is useless for
+   * diagnosis: "dropped: 4" cannot distinguish a scan that yielded nothing from
+   * a table whose columns were mis-split into `"2026-06-01 Coffee Shop"`.
+   */
+  dropReasons: DropReason[];
 };
+
+export type DropReason = {
+  /** 0-based index of the offending row in the raw input. */
+  index: number;
+  /** Which required field could not be parsed. */
+  field: "date" | "amount";
+  /** The offending value, truncated and PII-redacted. */
+  value: string;
+};
+
+/** Enough to spot a pattern, few enough to store in a log line or a note. */
+const MAX_DROP_REASONS = 5;
 
 export type NormalizeOptions = {
   /** Account currency, used when the statement omits a valid one. */
@@ -175,14 +194,35 @@ export function inferType(
   return direction === TxnDirection.CREDIT ? TxnType.CREDIT : TxnType.DEBIT;
 }
 
+/** Truncate + redact a rejected cell so it is safe to log and store. */
+function sampleValue(raw: unknown): string {
+  const s = raw == null ? "" : String(raw).replace(/\s+/g, " ").trim();
+  return redactAccountNumbers(s.slice(0, 60));
+}
+
 function normalizeRow(
   row: RawTransactionRow,
   currency: string,
   order: DateOrder,
-): NormalizedTransaction | null {
+): NormalizedTransaction | { drop: Omit<DropReason, "index"> } {
   const date = parseStatementDate(row.date ?? row.valueDate, order);
   const money = resolveAmount(row, currency);
-  if (!date || !money) return null;
+
+  // Report which field failed, and with what, rather than a silent null. A
+  // mis-split column shows up here as a date like "2026-06-01 Coffee Shop".
+  if (!date) {
+    return {
+      drop: { field: "date", value: sampleValue(row.date ?? row.valueDate) },
+    };
+  }
+  if (!money) {
+    return {
+      drop: {
+        field: "amount",
+        value: sampleValue(row.amount ?? row.debit ?? row.credit),
+      },
+    };
+  }
 
   const rawDescription = (row.description ?? "").toString().trim();
   const description = rawDescription.replace(/\s+/g, " ").trim() || "(no description)";
@@ -245,11 +285,18 @@ export function normalizeStatement(
   const order = opts.dateOrder ?? "DMY";
 
   const transactions: NormalizedTransaction[] = [];
+  const dropReasons: DropReason[] = [];
   let dropped = 0;
-  for (const row of raw.transactions) {
+  for (const [index, row] of raw.transactions.entries()) {
     const norm = normalizeRow(row, currency, order);
-    if (norm) transactions.push(norm);
-    else dropped += 1;
+    if ("drop" in norm) {
+      dropped += 1;
+      if (dropReasons.length < MAX_DROP_REASONS) {
+        dropReasons.push({ index, ...norm.drop });
+      }
+    } else {
+      transactions.push(norm);
+    }
   }
 
   const balances = inferBalances(
@@ -267,5 +314,6 @@ export function normalizeStatement(
     ...balances,
     transactions,
     dropped,
+    dropReasons,
   };
 }

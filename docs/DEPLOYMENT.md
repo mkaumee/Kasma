@@ -127,6 +127,12 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
    Reference Postgres with `${{Postgres.DATABASE_URL}}` so both services share
    the same database (the pg-boss queue also lives there — no Redis needed).
 
+   **Use the reference, not a pasted connection string.** `${{Postgres.DATABASE_URL}}`
+   resolves to the private hostname (`postgres.railway.internal`). A hand-pasted
+   public proxy URL (`*.proxy.rlwy.net`) works but adds latency and egress, and
+   because pg-boss polls continuously it produces a steady stream of
+   `Connection terminated due to connection timeout` errors in the worker log.
+
    **`NODE_ENV` is not required** and should be left unset — nothing in the app
    reads it. If your platform injects a blank or unexpected value, Kasma logs a
    warning and continues rather than refusing to start.

@@ -71,7 +71,9 @@ export function toNormalizedStatement(
         reference: t.reference,
       }),
     ),
+    // Rebuilt from already-persisted rows, so nothing was dropped here.
     dropped: 0,
+    dropReasons: [],
   };
 }
 

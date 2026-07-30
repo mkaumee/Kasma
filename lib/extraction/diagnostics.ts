@@ -1,3 +1,4 @@
+import type { DropReason } from "@/lib/extraction/normalize";
 import type { ParseResult } from "@/lib/extraction/types";
 
 /**
@@ -13,7 +14,10 @@ import type { ParseResult } from "@/lib/extraction/types";
  *
  * Written for the person reading it in the UI, not for a log parser.
  */
-export function describeExtraction(result: ParseResult): string | null {
+export function describeExtraction(
+  result: ParseResult,
+  normalized?: { kept: number; dropped: number; dropReasons: DropReason[] },
+): string | null {
   const meta = result.meta ?? {};
   const rows = result.raw.transactions.length;
 
@@ -46,6 +50,27 @@ export function describeExtraction(result: ParseResult): string | null {
     return chars === 0
       ? "No text could be read from this PDF — it looks like a scan or an image. Text-only extraction can't read it."
       : `Only ${chars} characters of text could be read from this PDF, which isn't enough to find transactions.`;
+  }
+
+  // Rows were read but none survived date/amount parsing — almost always a
+  // mis-split column, which looks nothing like "found nothing" and must not be
+  // reported as such.
+  if (normalized && normalized.kept === 0 && normalized.dropped > 0) {
+    const first = normalized.dropReasons[0];
+    const detail = first
+      ? ` The first failure was an unreadable ${first.field} on row ${
+          first.index + 1
+        }: “${first.value}”.`
+      : "";
+    return `Found ${normalized.dropped} row${
+      normalized.dropped === 1 ? "" : "s"
+    } but couldn't read any of them — the columns were probably split wrongly.${detail}`;
+  }
+
+  if (normalized && normalized.dropped > 0 && normalized.kept > 0) {
+    return `Imported ${normalized.kept} row${
+      normalized.kept === 1 ? "" : "s"
+    }; skipped ${normalized.dropped} that couldn't be read.`;
   }
 
   if (rows === 0) {

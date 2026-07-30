@@ -226,7 +226,13 @@ export async function processStatement(
     // Why this file produced little or nothing, in plain English. Persisted on
     // the statement AND mirrored to ImportJob.error so the existing failure card
     // renders it — previously this reason was computed and then thrown away.
-    const extractionNote = describeExtraction(parseResult);
+    // The normalizer's view is passed in so "found rows but couldn't read them"
+    // is distinguishable from "found nothing".
+    const extractionNote = describeExtraction(parseResult, {
+      kept: normalized.transactions.length,
+      dropped: normalized.dropped,
+      dropReasons: normalized.dropReasons,
+    });
 
     await prisma.$transaction(
       async (tx) => {

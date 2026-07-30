@@ -148,8 +148,12 @@ export class DeepSeekTruncatedError extends Error {
  * Exported so the metadata pass (lib/extraction/metadata.ts) can reuse the same
  * transport, retry policy, and truncation handling with a different prompt.
  *
- * We deliberately send no `thinking` key: V4's default is non-thinking, which
- * is faster, cheaper, and more reliable for structured extraction.
+ * Thinking mode is **opt-out, not opt-in**: V4 Pro enables it by default at
+ * `reasoning_effort: high`, and reasoning tokens are billed against `max_tokens`.
+ * Left on, the model can burn the entire output budget reasoning and return
+ * `finish_reason: "length"` with no content at all — which is exactly what
+ * happened to the metadata pass in production. Extraction is schema-constrained
+ * copying, not reasoning, so we disable it explicitly.
  */
 export async function callDeepSeek(
   userText: string,
@@ -164,6 +168,9 @@ export async function callDeepSeek(
       { role: "user", content: userText },
     ],
     response_format: { type: "json_object" },
+    // Opt out of reasoning; see the note above. Without this the model spends
+    // max_tokens thinking and returns nothing.
+    thinking: { type: "disabled" },
     temperature: 0,
     max_tokens: maxTokens,
     stream: false,

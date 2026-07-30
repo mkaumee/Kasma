@@ -97,8 +97,12 @@ describe("DeepSeek extractor", () => {
     expect(sent.model).toBe("deepseek-v4-pro");
     expect(sent.response_format).toEqual({ type: "json_object" });
     expect(sent.temperature).toBe(0);
-    // Non-thinking mode for structured extraction: no `thinking` key at all.
-    expect(sent).not.toHaveProperty("thinking");
+    // Thinking must be disabled EXPLICITLY. V4 Pro enables it by default and
+    // charges reasoning tokens against max_tokens, so leaving it on lets the
+    // model exhaust the budget reasoning and return no content at all. An
+    // earlier version of this test asserted the key was absent, which locked
+    // that failure in.
+    expect(sent.thinking).toEqual({ type: "disabled" });
     // Room for a long statement — the old 8K cap truncated the JSON.
     expect(sent.max_tokens).toBeGreaterThanOrEqual(64_000);
     // JSON mode requires the word "json" somewhere in the prompt.
