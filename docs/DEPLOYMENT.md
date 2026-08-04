@@ -1,15 +1,15 @@
 # Kasma — Deployment Guide
 
 Kasma is a Next.js (App Router) app plus a standalone background **worker**,
-backed by PostgreSQL and S3-compatible object storage. This guide covers a
-production deployment.
+backed by PostgreSQL and S3-compatible object storage. This guide covers
+deploying it to production.
 
 ## Components
 
 | Component | What it is | Where it runs |
 |-----------|------------|---------------|
 | **Web app** | Next.js server (UI + server actions + route handlers) | Vercel, or any Node host |
-| **Worker** | `pnpm worker` — pg-boss consumer running the statement pipeline | A **persistent** host (Railway/Fly/ECS) — *not* serverless; parse jobs are long-running |
+| **Worker** | `pnpm worker` — pg-boss consumer running the statement pipeline | A **persistent** host (Railway/Fly/ECS). Not serverless: parse jobs are long-running |
 | **PostgreSQL 16** | Primary datastore + the pg-boss job queue | Managed Postgres (Neon/Supabase/RDS) |
 | **Object storage** | Statement files + evidence | S3-compatible bucket (or local disk in dev) |
 
@@ -33,27 +33,27 @@ Copy `.env.example` and fill in:
 | `RESEND_API_KEY` | optional | Enables outbound email. Without it, notifications still land in-app; email is skipped. |
 | `EMAIL_FROM` | optional | From address for outbound email. |
 
-**Secrets never ship to the client** — only `NEXT_PUBLIC_*` values are exposed
-to the browser, and `lib/env.ts` fails fast on invalid configuration.
+**Secrets never ship to the client.** Only `NEXT_PUBLIC_*` values are exposed to
+the browser, and `lib/env.ts` fails fast on invalid configuration.
 
 ### Statement balances (why an LLM key matters)
 
-A statement is verified against its own running balance, so Kasma needs an
+A statement is checked against its own running balance, so Kasma needs an
 opening and closing figure. It gets them in this order:
 
 1. **From the statement**, when a parser reads them directly.
 2. **Derived from the rows'** running-balance column, when there is one. These
    are marked as derived: if *both* ends are derived, `opening + Σamounts ==
-   closing` is true by construction, so it is **not** treated as verification.
-3. **Read by the LLM** — when 1 and 2 leave nothing checkable, the extractor
-   sends just the head and tail of the document (where banks print
-   "Opening/Closing Balance") and asks for those figures only. This is one small
+   closing` holds by construction, so it does **not** count as a check.
+3. **Read by the LLM.** When 1 and 2 leave nothing checkable, the extractor
+   sends just the head and tail of the document, where banks print
+   "Opening/Closing Balance", and asks for those figures only. It is one small
    call, skipped whenever the balances are already known.
 4. **Corrected by a reviewer** in the statement review screen, if a figure is
    wrong. Never required at upload.
 
 Without any LLM key, steps 1–2 still run, but statements whose balances are only
-printed in a summary block will land in **needs-review** with nothing to verify
+printed in a summary block land in **needs-review** with nothing to check
 against. Setting `DEEPSEEK_API_KEY` on the **worker** is what enables step 3.
 
 ## First deploy
@@ -68,21 +68,19 @@ against. Setting `DEEPSEEK_API_KEY` on the **worker** is what enables step 3.
 ## Health checks
 
 `GET /api/health` returns `200 {"status":"ok"}` when the app and database are
-reachable, `503` otherwise — wire it to your load balancer / uptime monitor.
+reachable, `503` otherwise. Wire it to your load balancer or uptime monitor.
 
 ## Deploying on Railway
 
-Kasma runs well on Railway as **two services from this one repo** (web + worker)
-plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
-`railway.worker.json` (worker).
+Run **two services from this one repo** (web + worker) plus a Postgres plugin.
+Config-as-code lives in `railway.json` (web) and `railway.worker.json` (worker).
 
 > **File storage must be shared between the two services** (the web app writes
 > uploads; the worker reads them to parse). They cannot share a local disk /
 > volume, so pick one of:
 >
 > - **`STORAGE_DRIVER=db`** — store files in the Postgres you already run. No
->   external bucket, no extra credentials; simplest for a Railway deploy.
->   Best for small/medium volumes.
+>   external bucket, no extra credentials. Best for small/medium volumes.
 > - **`STORAGE_DRIVER=s3`** — an S3-compatible bucket (Cloudflare R2, AWS S3,
 >   Backblaze B2, or a MinIO service). Preferred at scale.
 >
@@ -97,7 +95,7 @@ plus a Postgres plugin. Config-as-code lives in `railway.json` (web) and
    `/api/health`).
 3. **Add a second service** from the *same* repo for the worker; set its config
    file to `railway.worker.json` (start = `pnpm worker`, no HTTP health check).
-4. **Choose storage** — set `STORAGE_DRIVER=db` to keep files in Postgres
+4. **Choose storage.** Set `STORAGE_DRIVER=db` to keep files in Postgres
    (nothing else to provision), or provision an S3-compatible bucket and use
    `STORAGE_DRIVER=s3` with its credentials.
 5. **Set variables on BOTH services** (worker needs DB + storage + the LLM key;
@@ -151,21 +149,21 @@ a good place for `pnpm db:migrate:deploy` once you scale out.
 
 - **Migrations** run on deploy (`db:migrate:deploy`); never `migrate dev` in
   production.
-- **The worker is stateful-ish** — it holds the pg-boss subscription. Run at
-  least one instance; scale horizontally as parse volume grows.
+- **The worker holds the pg-boss subscription.** Run at least one instance;
+  scale horizontally as parse volume grows.
 - **Rate limiting** is in-memory (per instance). For multi-instance auth/upload
   throttling, back `lib/security/rate-limit.ts` with Redis/Upstash.
-- **Logs** are structured JSON (`lib/log.ts`) — ship stdout to your aggregator.
+- **Logs** are structured JSON (`lib/log.ts`). Ship stdout to your aggregator.
   The worker's `statement processed` line carries `parser`, `confidence`, and a
   `note` explaining any statement that produced little or nothing.
 - **A statement that won't extract**: the reason is shown on the statement page
   and stored in `Statement.extractionNote`. To dig into a specific file, run
-  `pnpm diagnose:pdf path/to/statement.pdf` — it prints the extracted character
+  `pnpm diagnose:pdf path/to/statement.pdf`. It prints the extracted character
   count, a text sample, the detected columns, and the raw pdfjs error.
 - **Security headers** are set in `next.config.mjs`. A strict script/style CSP
   is deferred (needs nonce wiring) and is the recommended next hardening step.
-- **FX rates** in `lib/money/fx.ts` are indicative placeholders — replace with a
-  live, dated rate feed before relying on cross-currency totals.
+- **FX rates** in `lib/money/fx.ts` are indicative placeholders. Replace them
+  with a live, dated rate feed before relying on cross-currency totals.
 
 ## CI
 

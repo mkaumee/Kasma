@@ -19,33 +19,28 @@ import {
 const features = [
   {
     icon: Landmark,
-    title: "Multi-bank management",
-    description:
-      "Monitor balances across every company bank account from a single dashboard.",
+    title: "Accounts",
+    description: "All your company account balances on one screen.",
   },
   {
     icon: FileText,
-    title: "Statement processing",
-    description:
-      "Upload PDF or Excel statements; transaction data is extracted automatically.",
+    title: "Statements",
+    description: "Upload a PDF, Excel, or CSV. Kasma pulls out the rows.",
   },
   {
     icon: ListChecks,
-    title: "Transaction tracking",
-    description:
-      "Every credit, debit, charge, and payment in one centralized ledger.",
+    title: "Transactions",
+    description: "One ledger for every credit, debit, fee, and payment.",
   },
   {
     icon: ShieldCheck,
-    title: "Evidence & verification",
-    description:
-      "Attach receipts and notes with a complete, immutable transaction timeline.",
+    title: "Evidence",
+    description: "Attach receipts and notes. Every change is logged.",
   },
   {
     icon: BellRing,
-    title: "Financial control & alerts",
-    description:
-      "Detect mismatches, missing transactions, and unusual activity automatically.",
+    title: "Alerts",
+    description: "Mismatches, missing transactions, and unusual activity.",
   },
 ];
 
@@ -54,15 +49,15 @@ export default function LandingPage() {
     <>
       <section className="mx-auto max-w-6xl px-6 py-20">
         <Badge variant="secondary" className="mb-4">
-          No bank API required
+          No bank API
         </Badge>
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          Financial control across all your bank accounts.
+          Every bank account in one ledger.
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-pretty text-muted-foreground">
-          Kasma turns your bank statements into a live, verified view of company
-          cash — balances, transactions, evidence, and alerts — without
-          connecting to a single bank API.
+          Upload your bank statements. Kasma reads them, checks them against the
+          statement&apos;s own running balance, and flags what doesn&apos;t add
+          up.
         </p>
         <div id="get-started" className="mt-8 flex flex-wrap gap-3">
           <Button size="lg" asChild>
@@ -77,11 +72,8 @@ export default function LandingPage() {
       <section id="features" className="border-t bg-muted/30">
         <div className="mx-auto max-w-6xl px-6 py-16">
           <h2 className="text-2xl font-semibold tracking-tight">
-            Everything in one place
+            What it does
           </h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Five pillars that keep company cash accurate and auditable.
-          </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((feature) => (
               <Card key={feature.title}>

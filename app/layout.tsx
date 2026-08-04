@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     template: "%s · Kasma",
   },
   description:
-    "Multi-bank financial control platform — monitor balances, process statements, and catch financial errors without a bank API.",
+    "Upload bank statements. Kasma extracts the transactions, checks the balances, and flags errors.",
 };
 
 export default function RootLayout({
