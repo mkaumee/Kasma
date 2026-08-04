@@ -51,7 +51,7 @@ export type LedgerPage = {
 
 /**
  * Fetch one page of the org's ledger. The `where` is provided by the caller so
- * filters (Phase 8.2) compose cleanly; org scoping is always enforced here.
+ * filters compose cleanly. Org scoping is always enforced here.
  */
 export async function fetchLedgerPage(
   organizationId: string,

@@ -8,9 +8,8 @@ import { matchInternalTransfers } from "@/lib/controls/transfers";
 import { prisma } from "@/lib/db/client";
 
 /**
- * Financial-control orchestrator (Feature 5). Runs every detector for a
- * statement (and the org-wide passes it touches), keeping alerts current.
- * Called after import and on confirm.
+ * Runs every detector for a statement, plus the org-wide passes it touches,
+ * keeping alerts current. Called after import and on confirm.
  */
 export async function runControlsForStatement(
   organizationId: string,

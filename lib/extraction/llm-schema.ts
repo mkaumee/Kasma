@@ -5,10 +5,8 @@ import type { RawStatement, RawTransactionRow } from "@/lib/extraction/types";
 /**
  * Shared LLM-extraction contract used by every LLM provider (Claude, DeepSeek).
  * Keeping the schema, prompt, redaction, and JSON→canonical mapping in one
- * place means the providers differ only in transport — the guardrails (strict
- * JSON shape, PII redaction, "never trust the model's math") stay identical.
- *
- * See docs/PLAN.md Appendix D for the "no bank API" extraction guardrails.
+ * place means the providers differ only in transport. The guardrails — strict
+ * JSON shape, PII redaction, never trusting the model's math — stay identical.
  */
 
 /** Cap on text sent to a model, to bound token cost on huge exports. */

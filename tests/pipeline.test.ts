@@ -15,7 +15,7 @@ const GOOD_CSV = `Date,Description,Amount,Balance
 `;
 
 // Row 3's printed balance drops $1000 but the amount is only -$500 → a $500
-// gap the running-balance oracle must catch.
+// gap the running-balance check must catch.
 const CORRUPTED_CSV = `Date,Description,Amount,Balance
 2026-06-01,Coffee Shop,-4.50,995.50
 2026-06-02,Payroll Salary,2000.00,2995.50

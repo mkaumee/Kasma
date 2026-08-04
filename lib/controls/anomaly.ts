@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/client";
 import { currencyDecimals } from "@/lib/money/currency";
 
 /**
- * Anomaly detection (Feature 5). Two families of signal:
+ * Anomaly detection. Two families of signal:
  *  - statistical outliers: a transaction whose amount is a z-score outlier
  *    versus that counterparty's history (needs enough history) → ANOMALY.
  *  - rule flags: large round sums and first-seen counterparties with a large

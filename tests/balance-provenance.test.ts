@@ -10,9 +10,8 @@ import { validateBalances, validateStatement } from "@/lib/extraction/validate";
 import type { RawStatement } from "@/lib/extraction/types";
 
 /**
- * Balance provenance — the guardrail that keeps the "running balance is the
- * oracle" claim honest. Deriving BOTH ends from the rows makes the closing
- * identity true by algebra, so it must never be reported as verification.
+ * Balance provenance. Deriving BOTH ends from the rows makes the closing
+ * identity true by algebra, so it must never be reported as a passing check.
  */
 
 /** Rows carrying a printed running balance: 100.00 → 95.50 → 195.50. */

@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db/client";
 
 /**
- * Cross-account internal-transfer matching (Feature 5). Pairs a debit in one
- * account with an equal, opposite credit in another account within a date
- * window, so the same money moving between the company's own accounts isn't
- * double-counted in cash position. Exact minor-amount match keeps this to
- * same-currency transfers (FX transfers are out of scope). Idempotent: only
- * still-unmatched transactions are considered.
+ * Cross-account internal-transfer matching. Pairs a debit in one account with
+ * an equal, opposite credit in another account within a date window, so the
+ * same money moving between the company's own accounts isn't double-counted in
+ * cash position. Exact minor-amount match keeps this to same-currency transfers
+ * (FX transfers are out of scope). Idempotent: only still-unmatched
+ * transactions are considered.
  */
 
 type Candidate = {

@@ -320,7 +320,7 @@ export async function deepseekExtract(input: ParseInput): Promise<ParseResult> {
     meta: {
       model: env.DEEPSEEK_MODEL,
       usage,
-      // Retained for the audit trail (persisted as rawExtractionKey in 6.11).
+      // Retained for the audit trail (persisted as rawExtractionKey).
       rawResponse: JSON.stringify(parsed),
     },
   };

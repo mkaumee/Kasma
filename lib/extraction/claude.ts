@@ -14,16 +14,16 @@ import type { ParseInput, ParseResult } from "@/lib/extraction/types";
 import { env } from "@/lib/env";
 
 /**
- * Claude-powered statement extractor — one of the LLM fallback providers in the
- * "no bank API" pipeline (see `pickProvider` in llm.ts). It is only invoked when
- * the deterministic parsers fail or return low confidence, for formats like
- * scanned PDFs, images, or unknown layouts. Unlike DeepSeek, Claude can read
- * PDFs and images directly (vision), so it stays the provider for scanned input.
+ * Claude statement extractor, one of the LLM fallback providers (see
+ * `pickProvider` in llm.ts). It is only invoked when the deterministic parsers
+ * fail or return low confidence, for formats like scanned PDFs, images, or
+ * unknown layouts. Unlike DeepSeek, Claude can read PDFs and images directly
+ * (vision), so it stays the provider for scanned input.
  *
- * Guardrails (see docs/PLAN.md Appendix D):
+ * Guardrails:
  *  - Output is forced to a strict JSON schema; we never free-parse prose.
- *  - We never trust the model's math: totals/continuity are recomputed by the
- *    validation engine (6.9) against the statement's running balance.
+ *  - We never trust the model's math: totals and continuity are recomputed by
+ *    `lib/extraction/validate.ts` against the statement's running balance.
  *  - The raw model response is returned in `meta` so the caller can persist it
  *    (rawExtractionKey) as an audit trail.
  *  - Optional PII redaction masks likely account numbers before sending text.
@@ -146,7 +146,7 @@ export async function claudeExtract(input: ParseInput): Promise<ParseResult> {
     meta: {
       model,
       usage: message.usage,
-      // Retained for the audit trail (persisted as rawExtractionKey in 6.11).
+      // Retained for the audit trail (persisted as rawExtractionKey).
       rawResponse: JSON.stringify(parsed),
     },
   };

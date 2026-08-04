@@ -92,8 +92,7 @@ export default async function AlertsPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            {countFor("OPEN")} open · financial-control findings across your
-            accounts.
+            {countFor("OPEN")} open across your accounts.
           </p>
         </div>
         {canManage && <RunChecksButton />}
@@ -128,7 +127,7 @@ export default async function AlertsPage({
           title="Nothing here"
           description={
             tab.key === "open"
-              ? "No open alerts — your accounts reconcile cleanly."
+              ? "No open alerts. Your accounts reconcile."
               : "No alerts in this view."
           }
         />

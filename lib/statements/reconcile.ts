@@ -8,9 +8,9 @@ import { validateStatement, type ValidationResult } from "@/lib/extraction/valid
 
 /**
  * Recompute a statement's running-balance reconciliation from its persisted
- * transactions. Lets the review UI show a live reconciliation banner and lets
- * edits (Phase 7.3) re-validate without re-parsing the file. Shares the same
- * validation engine used at ingestion (Phase 6.9).
+ * transactions. Lets the review UI show a live reconciliation banner, and lets
+ * edits re-validate without re-parsing the file. Uses the same validation code
+ * as ingestion.
  */
 
 export type ReconcileStatement = Pick<

@@ -1,7 +1,5 @@
 # Local development services for Kasma.
 # Start with: docker compose up -d
-#
-# Object storage (MinIO) is added in Phase 5.
 
 services:
   postgres:

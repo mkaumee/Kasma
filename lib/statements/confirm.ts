@@ -4,17 +4,16 @@ import { markTemplateTrustedForStatement } from "@/lib/extraction/templates";
 import { reconcileStatement } from "@/lib/statements/reconcile";
 
 /**
- * Confirm + re-parse operations for statement review (Phase 7.4), factored out
- * of the server actions so they can be integration-tested without an auth
- * session.
+ * Confirm and re-parse operations for statement review, factored out of the
+ * server actions so they can be integration-tested without an auth session.
  */
 
 export type StatementActionResult = { ok?: true; error?: string };
 
 /**
- * Confirm a statement: its transactions become the source of truth. When the
+ * Confirm a statement, writing its transactions to the ledger. When the
  * statement fully reconciles, its saved template is marked trusted so future
- * matching uploads can auto-confirm (Phase 6.12).
+ * matching uploads can auto-confirm.
  */
 export async function confirmStatement(
   organizationId: string,

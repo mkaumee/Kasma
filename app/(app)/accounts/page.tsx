@@ -50,7 +50,7 @@ export default async function AccountsPage() {
         <EmptyState
           icon={Landmark}
           title="No bank accounts yet"
-          description="Add your company bank accounts to start monitoring balances across all of them."
+          description="Add a bank account to start tracking its balance."
           action={
             canWrite ? (
               <AccountDialog

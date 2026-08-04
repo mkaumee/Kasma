@@ -7,9 +7,9 @@ import {
   type Parser,
 } from "@/lib/extraction/types";
 
-// Parsers are registered here as they are implemented (Phase 6.4–6.7), in
-// priority order. The LLM fallback (6.7) is not a registered parser — the
-// orchestrator invokes it directly on low confidence (see parseStatement).
+// Parsers are registered here in priority order. The LLM fallback is not a
+// registered parser: the orchestrator invokes it directly on low confidence
+// (see parseStatement).
 const parsers: Parser[] = [];
 
 /** Register a parser (called by parser modules at import time). */
