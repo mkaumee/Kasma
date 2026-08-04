@@ -10,10 +10,10 @@ import {
 import { formatMoney } from "@/lib/money/currency";
 
 /**
- * Per-statement balance reconciliation (Feature 5, core). Recomputes the
- * running-balance oracle for a statement, persists a Reconciliation record,
- * and raises/clears a BALANCE_MISMATCH alert. Row-level gaps
- * (MISSING_TRANSACTION) and cross-statement gaps are handled in 10.2.
+ * Per-statement balance reconciliation. Recomputes the running balance,
+ * persists a Reconciliation record, and raises or clears a BALANCE_MISMATCH
+ * alert. Row-level gaps (MISSING_TRANSACTION) and cross-statement gaps live in
+ * `lib/controls/missing.ts`.
  */
 
 export type ReconcileResult = {

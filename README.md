@@ -1,29 +1,28 @@
 # Kasma
 
-**Multi-bank financial control platform — without a bank API.**
+Track company bank accounts from the statements themselves. No bank API.
 
-Kasma turns a company's own bank **statements** (PDF / Excel / CSV) into a live,
-verified view of cash: balances across every account, a centralized transaction
-ledger, attached evidence, and automated alerts for mismatches and unusual
-activity. No open-banking connection is ever required — each statement's own
-running balance is used as the correctness oracle.
+Upload a PDF, Excel, or CSV statement. Kasma extracts the transactions, checks
+them against the statement's own running balance, and raises an alert when the
+numbers don't line up.
 
-## The five pillars
+## What it does
 
-1. **Multi-bank management** — monitor balances across all company accounts from one dashboard.
-2. **Statement processing** — upload PDF/Excel statements; transactions are extracted automatically.
-3. **Transaction tracking** — every credit, debit, charge, and payment in one centralized ledger.
-4. **Evidence & verification** — attach receipts and notes with a complete, immutable timeline.
-5. **Financial control & alerts** — detect mismatches, missing transactions, and unusual activity.
+1. **Accounts** — balances for every company account on one dashboard.
+2. **Statements** — upload PDF/Excel/CSV; transactions are extracted automatically.
+3. **Transactions** — one ledger for every credit, debit, charge, and payment.
+4. **Evidence** — attach receipts and notes; every change is logged.
+5. **Alerts** — mismatches, missing transactions, and unusual activity.
 
 ## Tech stack
 
-- **Next.js 16** (App Router) · **React 19** · **TypeScript 5**
-- **Tailwind CSS v4** + **shadcn/ui** (design system) · **next-themes** (light/dark)
-- **Recharts** (charts) · **TanStack Table** (transaction ledger)
-- **Zod** (validated env + input schemas)
-- _Coming next:_ PostgreSQL + Prisma, Auth.js, S3-compatible storage, a pg-boss
-  worker, and Claude-powered statement extraction (see the roadmap).
+- **Next.js 16** (App Router), **React 19**, **TypeScript 5**
+- **Tailwind CSS v4** + **shadcn/ui**, **next-themes** for light/dark
+- **Recharts** for charts, **TanStack Table** for the ledger
+- **PostgreSQL** + **Prisma**, **Auth.js** for sessions and RBAC
+- **pg-boss** worker for statement parsing, S3-compatible object storage
+- **Zod** for validated env and input
+- LLM extraction fallback: DeepSeek for text and digital PDFs, Claude for scans
 
 ## Getting started
 
@@ -35,52 +34,40 @@ cp .env.example .env      # fill in values as you enable each feature
 pnpm dev                  # http://localhost:3000
 ```
 
+Statement parsing runs in a separate process: `pnpm worker`.
+
 ### Scripts
 
-| Command             | Description                              |
-| ------------------- | ---------------------------------------- |
-| `pnpm dev`          | Start the dev server (Turbopack)         |
-| `pnpm build`        | Production build                         |
-| `pnpm start`        | Serve the production build               |
-| `pnpm lint`         | ESLint (flat config)                     |
-| `pnpm format`       | Format with Prettier                     |
-| `pnpm format:check` | Check formatting                         |
-| `pnpm typecheck`    | `tsc --noEmit`                           |
+| Command             | Description                      |
+| ------------------- | -------------------------------- |
+| `pnpm dev`          | Start the dev server (Turbopack) |
+| `pnpm build`        | Production build                 |
+| `pnpm start`        | Serve the production build       |
+| `pnpm worker`       | Run the statement-parsing worker |
+| `pnpm lint`         | ESLint (flat config)             |
+| `pnpm format`       | Format with Prettier             |
+| `pnpm format:check` | Check formatting                 |
+| `pnpm typecheck`    | `tsc --noEmit`                   |
 
 ## Project structure
 
 ```
-app/            Next.js App Router (route groups: (marketing), later (auth)/(app))
+app/             Next.js App Router: (marketing), (auth), (app) route groups
 components/      UI components (ui/ = shadcn primitives)
-lib/            Domain logic: auth, db, storage, money, extraction, reconciliation
-worker/         Background worker (statement parsing) — added in Phase 6
-prisma/         Database schema + migrations — added in Phase 1
-tests/ e2e/      Unit/integration and Playwright tests
+lib/             Domain logic: auth, db, storage, money, extraction, controls
+worker/          Background worker (statement parsing)
+prisma/          Database schema + migrations
+tests/ e2e/      Vitest and Playwright tests
 fixtures/        Sample statements for extraction tests
-docs/            Architecture and the full roadmap
+docs/            Architecture, user guide, deployment
 ```
 
 ## Documentation
 
-- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — how to use Kasma end to end.
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — production deployment + env vars.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture summary.
-- [`docs/PLAN.md`](docs/PLAN.md) — the full phased build plan.
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — how to use Kasma.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — production deployment and env vars.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the pieces fit together.
 - [`fixtures/`](fixtures/) — sample statements to try the pipeline.
-
-## Roadmap
-
-The full architecture and the phased, commit-by-commit build plan live in
-[`docs/PLAN.md`](docs/PLAN.md).
-
-**Status:** All 12 phases complete — foundations, database & multi-tenancy,
-auth & RBAC, the app shell, bank accounts, object storage, the statement
-ingestion pipeline (parse → normalize → validate → dedupe → persist, with a
-Claude fallback), statement review & confirm, the transactions ledger with
-categories/rules/export, evidence & verification, reconciliation & the alerts
-engine, the multi-bank dashboard, and release hardening (notifications,
-security headers + rate limiting, structured logging + health checks, E2E,
-and docs).
 
 ## License
 

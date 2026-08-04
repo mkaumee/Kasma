@@ -7,10 +7,10 @@ import { prisma } from "@/lib/db/client";
 import { reconcileStatement } from "@/lib/statements/reconcile";
 
 /**
- * Missing-transaction and missing-statement detection (Feature 5). Both lean on
- * the running balance: a break in a statement's continuity implies a missing
- * row, and a jump between one statement's closing and the next's opening
- * implies a whole statement is missing.
+ * Missing-transaction and missing-statement detection. Both lean on the
+ * running balance: a break in a statement's continuity implies a missing row,
+ * and a jump between one statement's closing and the next's opening implies a
+ * whole statement is missing.
  */
 
 const abs = (v: bigint) => (v < 0n ? -v : v);

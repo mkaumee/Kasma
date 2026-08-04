@@ -23,8 +23,7 @@ export default function AppError({
       </div>
       <h2 className="text-lg font-semibold">Something went wrong</h2>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        An unexpected error occurred. You can try again, or head back to the
-        dashboard.
+        Try again, or head back to the dashboard.
       </p>
       <div className="mt-6 flex gap-3">
         <Button onClick={reset}>Try again</Button>

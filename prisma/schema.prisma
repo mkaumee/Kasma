@@ -1,7 +1,5 @@
 // Kasma database schema (Prisma 6, PostgreSQL).
 //
-// Models are added incrementally across Phase 1:
-//   1.2 tenant · 1.3 banking · 1.4 ledger · 1.5 evidence · 1.6 controls
 // Money is always stored as integer minor units + an ISO currency code.
 
 generator client {
@@ -14,7 +12,7 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// Tenancy (Phase 1.2)
+// Tenancy
 // ---------------------------------------------------------------------------
 
 enum Role {
@@ -90,7 +88,7 @@ model Membership {
 }
 
 // ---------------------------------------------------------------------------
-// Banking (Phase 1.3)
+// Banking
 // ---------------------------------------------------------------------------
 
 enum AccountType {
@@ -179,7 +177,7 @@ model Statement {
   extractionNote   String?
   /// Object-storage key for the raw extractor response (LLM audit trail).
   rawExtractionKey String?
-  /// The learned template this statement matched, if any (Phase 6.12).
+  /// The learned template this statement matched, if any.
   statementTemplateId String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -220,7 +218,7 @@ model ImportJob {
 }
 
 // ---------------------------------------------------------------------------
-// Ledger (Phase 1.4)
+// Ledger
 // ---------------------------------------------------------------------------
 
 enum TxnDirection {
@@ -309,7 +307,7 @@ model Transaction {
 }
 
 // ---------------------------------------------------------------------------
-// Evidence & verification (Phase 1.5)
+// Evidence & verification
 // ---------------------------------------------------------------------------
 
 enum AttachmentKind {
@@ -391,7 +389,7 @@ model TransactionEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Financial control (Phase 1.6)
+// Financial control
 // ---------------------------------------------------------------------------
 
 enum ReconciliationStatus {
@@ -501,7 +499,7 @@ model Rule {
 /// A learned, reusable parse profile for a recurring statement format. Matching
 /// uploads reuse the mapping, and once a human confirms a statement produced by
 /// a template it becomes `trusted` so future fully-reconciled uploads of the
-/// same format may auto-confirm (Phase 6.12).
+/// same format may auto-confirm.
 model StatementTemplate {
   id             String   @id @default(cuid())
   organizationId String
@@ -529,7 +527,7 @@ model StatementTemplate {
 }
 
 // ---------------------------------------------------------------------------
-// Invitations (Phase 2.5)
+// Invitations
 // ---------------------------------------------------------------------------
 
 enum InvitationStatus {
@@ -561,7 +559,7 @@ model Invitation {
 }
 
 // ---------------------------------------------------------------------------
-// Notifications (Phase 12.1)
+// Notifications
 // ---------------------------------------------------------------------------
 
 /// An in-app notification for a user within an organization. Email delivery is
@@ -586,7 +584,7 @@ model Notification {
 }
 
 // ---------------------------------------------------------------------------
-// Object storage backed by Postgres (Phase 12 follow-up)
+// Object storage backed by Postgres
 // ---------------------------------------------------------------------------
 
 /// A stored file when STORAGE_DRIVER=db — lets the app run on Postgres alone,

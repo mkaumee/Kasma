@@ -22,7 +22,7 @@ export type ReconciliationSummary = {
 
 /**
  * Banner summarizing whether a statement's transactions reconcile against its
- * running balance — the product's core "no bank API" trust signal.
+ * running balance.
  */
 export function ReconciliationBanner({
   currency,
@@ -77,7 +77,7 @@ function describe(
       icon: CheckCircle2,
       title: "Balance reconciles",
       detail:
-        "Opening balance plus every transaction matches the statement's closing balance.",
+        "Opening balance plus every transaction matches the closing balance.",
     };
   }
   if (tone === "unknown") {
@@ -89,7 +89,7 @@ function describe(
         icon: HelpCircle,
         title: "Balances were derived from the rows",
         detail:
-          "This statement prints no opening or closing balance, so both were computed from the transactions themselves — they can't independently confirm the extraction. Review the rows below.",
+          "Both balances were computed from the transactions, so they can't confirm the extraction. Review the rows below.",
       };
     }
     const hasOpening = summary.hasOpening ?? false;
@@ -100,14 +100,14 @@ function describe(
       return {
         icon: HelpCircle,
         title: `No ${missing} balance to verify against`,
-        detail: `This statement has an ${present} balance but no ${missing} one, so the totals can't be cross-checked automatically. Add it above, or review the rows below.`,
+        detail: `This statement has an ${present} balance but no ${missing} one, so the totals can't be checked. Add it above, or review the rows below.`,
       };
     }
     return {
       icon: HelpCircle,
       title: "No running balance to verify against",
       detail:
-        "This statement carries no opening or closing balance, so extraction can't be cross-checked automatically. Add them above if you have the statement to hand, or review the rows below.",
+        "This statement has no opening or closing balance, so the extraction can't be checked. Add them above, or review the rows below.",
     };
   }
 

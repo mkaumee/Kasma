@@ -73,13 +73,13 @@ const envSchema = z.object({
     }),
   NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
 
-  // Phase 1 — database
+  // Database
   DATABASE_URL: z.string().min(1).optional(),
 
-  // Phase 2 — auth
+  // Auth
   AUTH_SECRET: z.string().min(1).optional(),
 
-  // Phase 5 — object storage (local disk, S3-compatible, or Postgres)
+  // Object storage (local disk, S3-compatible, or Postgres)
   STORAGE_DRIVER: z.enum(["local", "s3", "db"]).optional(),
   LOCAL_STORAGE_DIR: z.string().min(1).default(".storage"),
   S3_ENDPOINT: z.url().optional(),
@@ -88,7 +88,7 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_BUCKET: z.string().min(1).optional(),
 
-  // Phase 6 — statement extraction (LLM fallback)
+  // Statement extraction (LLM fallback)
   // Which LLM provider to prefer for the fallback extractor. "auto" (default)
   // uses DeepSeek when its key is set, but routes images/scans to Claude when
   // available (DeepSeek is text-only). "deepseek"/"anthropic" pin a provider.
@@ -96,7 +96,7 @@ const envSchema = z.object({
     .enum(["auto", "deepseek", "anthropic"])
     .default("auto"),
 
-  // DeepSeek (default fallback provider) — OpenAI-compatible chat completions.
+  // DeepSeek (default fallback provider), OpenAI-compatible chat completions.
   // NOTE: the legacy `deepseek-chat` / `deepseek-reasoner` IDs were discontinued
   // on 2026-07-24; the current models are deepseek-v4-pro and deepseek-v4-flash.
   // Override with DEEPSEEK_MODEL to run the cheaper flash tier.
@@ -104,7 +104,7 @@ const envSchema = z.object({
   DEEPSEEK_MODEL: z.string().min(1).default("deepseek-v4-pro"),
   DEEPSEEK_BASE_URL: z.url().default("https://api.deepseek.com"),
 
-  // Anthropic (Claude) — kept as the vision provider for scanned PDFs/images.
+  // Anthropic (Claude): the vision provider for scanned PDFs and images.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   // Cost-efficient model for per-statement extraction (metered per org). The
   // top model is reserved for hard/low-confidence pages later.
@@ -115,7 +115,7 @@ const envSchema = z.object({
     .default("true")
     .transform((v) => v === "true"),
 
-  // Phase 12 — email
+  // Email
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).default("Kasma <notifications@kasma.local>"),
 });

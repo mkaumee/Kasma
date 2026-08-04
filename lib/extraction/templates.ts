@@ -4,14 +4,15 @@ import { prisma } from "@/lib/db/client";
 import type { ParseResult } from "@/lib/extraction/types";
 
 /**
- * Saved per-bank templates (Phase 6.12). A template is a structural fingerprint
- * of a recurring statement format (parser + detected column layout). The first
- * time a format is seen a template is created (untrusted); once a human
- * confirms a statement produced by it (Phase 7), it becomes `trusted` and
- * future fully-reconciled uploads of the same format may auto-confirm.
+ * Saved per-bank templates. A template is a structural fingerprint of a
+ * recurring statement format (parser + detected column layout). The first time
+ * a format is seen a template is created, untrusted; once a human confirms a
+ * statement produced by it, it becomes `trusted` and future fully-reconciled
+ * uploads of the same format may auto-confirm.
  *
- * Only tabular parses (with a detected column map) get a template — LLM/unknown
- * extractions have no stable structural signature, so they always need review.
+ * Only tabular parses (with a detected column map) get a template. LLM and
+ * unknown extractions have no stable structural signature, so they always need
+ * review.
  */
 
 /**
@@ -80,8 +81,8 @@ export async function recordTemplate(
 }
 
 /**
- * Mark a statement's template as trusted (called when a human confirms a
- * statement in Phase 7). No-op if the statement matched no template.
+ * Mark a statement's template as trusted, called when a human confirms a
+ * statement. No-op if the statement matched no template.
  */
 export async function markTemplateTrustedForStatement(
   statementId: string,

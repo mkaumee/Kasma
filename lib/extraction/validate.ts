@@ -1,16 +1,15 @@
 import type { NormalizedStatement } from "@/lib/extraction/normalize";
 
 /**
- * Validation engine — the correctness oracle of the "no bank API" pipeline.
- *
- * With no bank feed to trust, the statement's own running balance is ground
- * truth. We recompute it from the (signed, minor-unit) amounts and assert:
+ * Checks extracted rows against the statement's own running balance, which is
+ * the only thing we have to check them against. We recompute the balance from
+ * the (signed, minor-unit) amounts and assert:
  *   - opening + Σ(amounts) == stated closing, and
  *   - each row's printed balance continues from the previous one.
- * A break localizes a mis-parsed/hallucinated row or a genuinely missing
- * transaction (the gap = what the balance implies is unaccounted for). The
- * result also produces a validation-adjusted confidence used to route the
- * statement to auto-confirm vs. needs-review.
+ * A break localizes a mis-parsed row or a genuinely missing transaction (the
+ * gap is what the balance says is unaccounted for). The result also produces a
+ * validation-adjusted confidence that routes the statement to auto-confirm or
+ * needs-review.
  */
 
 export type ContinuityBreak = {

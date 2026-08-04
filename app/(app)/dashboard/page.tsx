@@ -126,7 +126,7 @@ export default async function DashboardPage() {
         <EmptyState
           icon={Landmark}
           title={`Welcome to ${organization.name}`}
-          description="Add a bank account and upload a statement to see your multi-bank overview here."
+          description="Add a bank account and upload a statement to see your balances here."
         />
       ) : (
         <>
